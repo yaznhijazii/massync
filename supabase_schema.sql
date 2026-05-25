@@ -28,6 +28,7 @@ create table if not exists public.users (
   vibe_status text, -- Store user's current vibe status text/emoji
   pair_id uuid references public.pairs(id) on delete set null,
   invite_code text unique not null,
+  last_seen_at timestamp with time zone,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -285,10 +286,12 @@ create table if not exists public.memories (
   mood_emoji text,
   tags text[],
   photo text, -- URL
-  type text not null default 'memory', -- 'memory', 'outing'
+  type text not null default 'memory', -- 'memory', 'outing', 'gift'
   time text, -- for outing
   place text, -- for outing
   vibe text, -- for outing
+  location_url text, -- for outing map link
+  page_url text, -- for outing or gift external link
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -389,8 +392,9 @@ create policy "Allow members to manage prayer logs"
     )
   );
 
--- Ensure vibe_status and friends_since columns exist in case user is upgrading an older DB schema
+-- Ensure vibe_status, last_seen_at, and friends_since columns exist in case user is upgrading an older DB schema
 alter table public.users add column if not exists vibe_status text;
+alter table public.users add column if not exists last_seen_at timestamp with time zone;
 alter table public.pairs add column if not exists friends_since date;
 
 -- ==========================================
@@ -458,3 +462,44 @@ create policy "Allow users to delete their own memories"
   on storage.objects for delete
   to authenticated
   using (bucket_id = 'memories');
+
+-- ==========================================
+-- Hobbies Table (Scoped to pair_id)
+-- ==========================================
+create table if not exists public.hobbies (
+  id uuid primary key default gen_random_uuid(),
+  pair_id uuid references public.pairs(id) on delete cascade,
+  name text not null,
+  description text,
+  cover_image text,
+  start_date date,
+  goal_date date,
+  status text not null default 'active', -- 'active', 'completed', 'paused'
+  steps jsonb default '[]'::jsonb,
+  notes jsonb default '[]'::jsonb,
+  photos text[] default '{}'::text[],
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.hobbies enable row level security;
+
+drop policy if exists "Allow members to manage pair hobbies" on public.hobbies;
+create policy "Allow members to manage pair hobbies"
+  on public.hobbies for all
+  to authenticated
+  using (
+    exists (
+      select 1 from public.users 
+      where id = auth.uid() and pair_id = hobbies.pair_id
+    )
+  );
+-- Realtime Replication Setup
+-- ==========================================
+-- Enable Realtime for the tables to support live syncing (re-create publication if needed)
+-- Note: if publication already exists, these add table commands will enable realtime sync for them
+alter publication supabase_realtime add table public.users;
+alter publication supabase_realtime add table public.tasks;
+alter publication supabase_realtime add table public.memories;
+alter publication supabase_realtime add table public.songs;
+alter publication supabase_realtime add table public.prayer_logs;
+alter publication supabase_realtime add table public.hobbies;

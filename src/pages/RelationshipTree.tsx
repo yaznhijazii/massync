@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore, type TreeNode } from '../store/useAppStore'
-import { ArrowLeft, Network, Plus, Heart, Smile, Trash2, X, Sparkles, User, MessageSquare } from 'lucide-react'
+import { ArrowLeft, Network, Plus, Heart, Smile, Trash2, X, Users, User, MessageSquare } from 'lucide-react'
 
 export default function RelationshipTree() {
   const navigate = useNavigate()
@@ -89,8 +89,9 @@ export default function RelationshipTree() {
             <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Friends & Family Tree</p>
           </div>
         </div>
-        <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center shadow-inner">
-          <Network className="text-indigo-600 animate-pulse" size={18} />
+        <div className="w-10 h-10 rounded-2xl bg-indigo-500/5 border border-indigo-500/20 shadow-sm flex items-center justify-center relative overflow-hidden shrink-0">
+          <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/10 to-purple-500/5 opacity-50" />
+          <Network className="text-indigo-600 relative z-10" size={18} strokeWidth={2.5} />
         </div>
       </header>
 
@@ -98,24 +99,16 @@ export default function RelationshipTree() {
       <div className="flex bg-slate-100/60 backdrop-blur-md p-1.5 rounded-[22px] mb-8 border border-slate-200/50">
         <button
           onClick={() => setActiveTab('me')}
-          className={`flex-1 py-3.5 px-4 rounded-2xl font-black text-xs uppercase tracking-wide transition-all duration-200 active-pop flex items-center justify-center gap-1.5 ${
-            activeTab === 'me'
-              ? 'bg-white text-indigo-700 shadow-sm border border-slate-100/55'
-              : 'text-slate-400 hover:text-slate-600'
-          }`}
+          className="flex-1 py-3.5 px-4 rounded-2xl font-black text-xs uppercase tracking-wide transition-all duration-200 active-pop flex items-center justify-center gap-1.5 bg-white text-indigo-700 shadow-sm border border-slate-100/55"
         >
-          <Sparkles size={13} className={activeTab === 'me' ? 'text-indigo-600 animate-pulse' : ''} />
+          <Users size={13} className={activeTab === 'me' ? 'text-indigo-600' : ''} />
           My Circle
         </button>
         <button
           onClick={() => setActiveTab('partner')}
-          className={`flex-1 py-3.5 px-4 rounded-2xl font-black text-xs uppercase tracking-wide transition-all duration-200 active-pop flex items-center justify-center gap-1.5 ${
-            activeTab === 'partner'
-              ? 'bg-white text-indigo-700 shadow-sm border border-slate-100/55'
-              : 'text-slate-400 hover:text-slate-600'
-          }`}
+          className="flex-1 py-3.5 px-4 rounded-2xl font-black text-xs uppercase tracking-wide transition-all duration-200 active-pop flex items-center justify-center gap-1.5 text-slate-400 hover:text-slate-600"
         >
-          <Heart size={13} className={activeTab === 'partner' ? 'text-indigo-600 animate-pulse' : ''} />
+          <Heart size={13} className={activeTab === 'partner' ? 'text-indigo-600' : ''} />
           {partnerName ? `${partnerName}'s Circle` : "Her Circle"}
         </button>
       </div>

@@ -1,10 +1,14 @@
 import React, { useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
-import { Calendar as CalendarIcon, MapPin, Clock, Plus, Smile, Compass, Camera, History, Map, Sparkles, Heart, Pizza, Coffee, Globe, Upload, X, User } from 'lucide-react'
+import { Calendar as CalendarIcon, MapPin, Clock, Plus, Smile, Compass, Camera, History, Map, Zap, Heart, Pizza, Coffee, Globe, Upload, X, User, Star } from 'lucide-react'
 
 export default function Memories() {
-  const { memories, partnerName, addMemory, addOuting, uploadMemoryPhoto } = useAppStore()
+  const { memories, partnerName, addMemory, addOuting, uploadMemoryPhoto, fetchMemories } = useAppStore()
   
+  React.useEffect(() => {
+    fetchMemories()
+  }, [fetchMemories])
+
   const [activeTab, setActiveTab] = useState<'scrapbook' | 'planner'>('scrapbook')
   const [isAddingMemory, setIsAddingMemory] = useState(false)
   const [isAddingOuting, setIsAddingOuting] = useState(false)
@@ -45,7 +49,7 @@ export default function Memories() {
       case 'funny':
         return <Smile className="text-amber-500" size={16} />
       case 'excited':
-        return <Sparkles className="text-purple-500 fill-purple-100" size={16} />
+        return <Zap className="text-purple-500" size={16} />
       case 'hungry':
         return <Pizza className="text-orange-500" size={16} />
       case 'chill':
@@ -196,16 +200,17 @@ export default function Memories() {
       {/* Header */}
       <header className="flex justify-between items-center mb-6">
         <div>
-          <span className="text-[10px] font-black uppercase tracking-wider text-brand-cyan bg-brand-cyan/10 border border-brand-cyan/20 px-3.5 py-1.5 rounded-full select-none flex items-center gap-1.5">
+          <span className="text-[10px] font-black uppercase tracking-wider text-brand-cyan bg-brand-cyan/10 border border-brand-cyan/20 px-3.5 py-1.5 rounded-full select-none inline-flex items-center gap-1.5">
             <span>Our Shared Scrapbook</span>
-            <Sparkles size={11} className="text-brand-cyan animate-pulse" />
+            <Star size={11} className="text-brand-cyan" />
           </span>
           <h1 className="text-4xl font-extrabold text-brand-dark mt-3.5 tracking-tight">
             Memories
           </h1>
         </div>
-        <div className="w-12 h-12 rounded-2xl bg-brand-cyan/10 flex items-center justify-center shadow-inner">
-          <Compass className="text-brand-cyan animate-spin-slow" size={22} />
+        <div className="w-12 h-12 rounded-2xl bg-brand-cyan/5 border border-brand-cyan/20 shadow-sm flex items-center justify-center relative overflow-hidden shrink-0">
+          <div className="absolute inset-0 bg-gradient-to-tr from-brand-cyan/10 to-teal-500/5 opacity-50" />
+          <Compass className="text-brand-cyan relative z-10" size={22} strokeWidth={2.5} />
         </div>
       </header>
 
@@ -586,7 +591,7 @@ export default function Memories() {
       {/* Floating Add Trigger based on Active Tab */}
       {activeTab === 'scrapbook' ? (
         isAddingMemory ? (
-          <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-end justify-center px-4 pb-8 transition-all">
+          <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all">
             <div className="bg-white rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-slide-up border border-slate-100 max-h-[85vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-5">
                 <h3 className="font-extrabold text-xl text-brand-dark">Capture a Memory</h3>
@@ -783,7 +788,7 @@ export default function Memories() {
           </button>
         )
       ) : isAddingOuting ? (
-        <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-end justify-center px-4 pb-8 transition-all">
+        <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all">
           <div className="bg-white rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-slide-up border border-slate-100 max-h-[85vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-5">
               <h3 className="font-extrabold text-xl text-brand-dark">Plan an Outing</h3>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAppStore } from '../store/useAppStore'
-import { User, MapPin, Mail, Lock, Heart, ArrowRight, Sparkles } from 'lucide-react'
+import { User, MapPin, Mail, Lock, Heart, ArrowRight, Star } from 'lucide-react'
 
 export default function SignUp() {
   const navigate = useNavigate()
@@ -49,7 +49,7 @@ export default function SignUp() {
         {success ? (
           <div className="text-center py-6 space-y-3 flex flex-col items-center justify-center">
             <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
-              <Sparkles size={24} />
+              <Star size={24} />
             </div>
             <h3 className="text-xl font-bold text-brand-dark">Account Created!</h3>
             <p className="text-sm text-brand-gray">

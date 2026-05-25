@@ -16,6 +16,10 @@ const getInitialUser = () => {
 }
 
 let activeChannel: any = null
+let presenceChannel: any = null
+let dbChangesChannel: any = null
+let subscribedPresencePairId: string | null = null
+let subscribedPairId: string | null = null
 
 function getFriendshipDurationStr(sinceDate: string) {
   if (!sinceDate) return 'Friends for 2 years'
@@ -66,7 +70,7 @@ export interface Memory {
   mood_emoji: string
   tags: string[]
   photo?: string
-  type: 'memory' | 'outing'
+  type: 'memory' | 'outing' | 'gift'
   time?: string
   place?: string
   vibe?: string
@@ -126,11 +130,18 @@ export interface WatchItem {
   priority?: 'High' | 'Medium' | 'Low'
 }
 
+export interface ToastItem {
+  id: string
+  message: string
+  type: 'success' | 'error' | 'info'
+}
+
 interface AppState {
   // Authentication & Pairing
   user: User | null
   authInitialized: boolean
   pairId: string | null
+  partnerId: string | null
   inviteCode: string
   partnerInviteCode: string
   pairStatus: 'pending' | 'active'
@@ -144,7 +155,8 @@ interface AppState {
   userVibe: string
   partnerVibe: string
   dbError: string | null
-  
+  onlineUsers: string[]
+  partnerLastSeen: string | null
   
   // App Data
   tasks: Task[]
@@ -152,14 +164,22 @@ interface AppState {
   songs: Song[]
   myPrayers: PrayerLog
   partnerPrayers: PrayerLog
+  myAthkar: { [thikrId: string]: number }
+  partnerAthkar: { [thikrId: string]: number }
+  userQuranPage: number
+  partnerQuranPage: number
+  quranTarget: string
   hobbies: Hobby[]
   watchlist: WatchItem[]
   myTreeNodes: TreeNode[]
   partnerTreeNodes: TreeNode[]
   dailyChallengeDone: boolean
+  toasts: ToastItem[]
   
   // Setters & Actions
   setUser: (user: User | null) => void
+  showToast: (message: string, type?: ToastItem['type']) => void
+  dismissToast: (id: string) => void
   setPairId: (id: string | null) => void
   setPairStatus: (status: 'pending' | 'active') => void
   setInviteCode: (code: string) => void
@@ -179,6 +199,17 @@ interface AppState {
   disconnectPartner: () => Promise<void>
   subscribeToRealtime: () => void
   unsubscribeFromRealtime: () => void
+  subscribeToPresence: () => void
+  unsubscribeFromPresence: () => void
+  subscribeToDatabaseChanges: () => void
+  unsubscribeFromDatabaseChanges: () => void
+  updateLastSeen: () => Promise<void>
+  fetchTasks: () => Promise<void>
+  fetchSongs: () => Promise<void>
+  fetchMemories: () => Promise<void>
+  fetchPrayers: () => Promise<void>
+  fetchAthkarLogs: () => Promise<void>
+  fetchHobbies: () => Promise<void>
 
   // Task Actions
   addTask: (task: Omit<Task, 'id' | 'pair_id' | 'created_by' | 'is_done'>) => void
@@ -191,9 +222,21 @@ interface AppState {
   
   // Song Actions
   giftSong: (song: Omit<Song, 'id' | 'pair_id' | 'gifted_by' | 'gifted_at'>) => void
+
+  // Gift Actions
+  addGift: (title: string, note?: string, photo?: string, link?: string) => Promise<void>
+  deleteGift: (id: string) => Promise<void>
   
   // Prayer Actions
   togglePrayer: (prayer: keyof PrayerLog) => void
+  
+  // Athkar Actions
+  incrementThikrCount: (thikrId: string, maxCount: number) => Promise<void>
+  resetAthkarLogs: (ids: string[]) => Promise<void>
+  
+  // Quran Actions
+  updateQuranPage: (page: number) => Promise<void>
+  updateQuranTarget: (target: string) => Promise<void>
   
   // Hobby Actions
   addHobby: (hobby: Omit<Hobby, 'id' | 'pair_id'>) => void
@@ -230,6 +273,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   user: getInitialUser(),
   authInitialized: false,
   pairId: null,
+  partnerId: null,
   inviteCode: '',
   partnerInviteCode: '',
   pairStatus: 'pending',
@@ -243,6 +287,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   userVibe: '',
   partnerVibe: '',
   dbError: null,
+  onlineUsers: [],
+  partnerLastSeen: null,
 
   tasks: [],
 
@@ -266,14 +312,33 @@ export const useAppStore = create<AppState>((set, get) => ({
     isha: false
   },
 
+  myAthkar: {},
+  partnerAthkar: {},
+
   hobbies: [],
 
   watchlist: [],
+  userQuranPage: 1,
+  partnerQuranPage: 1,
+  quranTarget: 'Finish Al-Baqarah by Sunday',
 
   dailyChallengeDone: false,
+  toasts: [],
 
   myTreeNodes: getInitialTreeNodes('me'),
   partnerTreeNodes: getInitialTreeNodes('partner'),
+
+  showToast: (message, type = 'success') => {
+    const id = `toast-${Date.now()}-${Math.random()}`
+    set((state) => ({ toasts: [...state.toasts, { id, message, type }] }))
+    setTimeout(() => {
+      set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }))
+    }, 3500)
+  },
+
+  dismissToast: (id) => {
+    set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }))
+  },
 
   // Setters
   setUser: (user) => set({ user }),
@@ -530,119 +595,703 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // Tasks actions
-  addTask: (task) => set((state) => {
+  addTask: async (task) => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+    
+    const tempId = `temp-task-${Date.now()}`
     const newTask: Task = {
       ...task,
-      id: `task-${Date.now()}`,
-      pair_id: state.pairId || 'mock-pair-id-123',
+      id: tempId,
+      pair_id: pairId,
       created_by: 'you',
       is_done: false,
     }
-    return { tasks: [newTask, ...state.tasks] }
-  }),
+    set((state) => ({ tasks: [newTask, ...state.tasks] }))
 
-  toggleTask: (id) => set((state) => ({
-    tasks: state.tasks.map((t) =>
-      t.id === id
-        ? {
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/tasks`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          pair_id: pairId,
+          created_by: userId,
+          title: task.title,
+          category: task.category,
+          recurrence: task.recurrence,
+          date: task.date,
+          is_done: false
+        })
+      })
+      if (res.ok) {
+        const inserted = await res.json()
+        const dbTask = inserted[0]
+        if (dbTask) {
+          set((state) => ({
+            tasks: state.tasks.map((t) => t.id === tempId ? {
+              ...t,
+              id: dbTask.id,
+              created_by: dbTask.created_by === userId ? 'you' : 'partner'
+            } : t)
+          }))
+        }
+        get().showToast('Task added ✓', 'success')
+      }
+    } catch (e) {
+      console.error('[MasSync] Error adding task to DB:', e)
+      get().showToast('Failed to add task', 'error')
+    }
+  },
+
+  toggleTask: async (id) => {
+    const userId = get().user?.id
+    if (!userId) return
+
+    let wasDone = false
+    set((state) => ({
+      tasks: state.tasks.map((t) => {
+        if (t.id === id) {
+          wasDone = !t.is_done
+          return {
             ...t,
-            is_done: !t.is_done,
-            done_by: !t.is_done ? 'you' : undefined,
-            done_at: !t.is_done ? new Date().toISOString() : undefined,
+            is_done: wasDone,
+            done_by: wasDone ? 'you' : undefined,
+            done_at: wasDone ? new Date().toISOString() : undefined,
           }
-        : t
-    ),
-  })),
+        }
+        return t
+      })
+    }))
 
-  deleteTask: (id) => set((state) => ({
-    tasks: state.tasks.filter((t) => t.id !== id),
-  })),
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          is_done: wasDone,
+          done_by: wasDone ? userId : null,
+          done_at: wasDone ? new Date().toISOString() : null,
+        })
+      })
+    } catch (e) {
+      console.error('[MasSync] Error toggling task in DB:', e)
+    }
+  },
+
+  deleteTask: async (id) => {
+    set((state) => ({
+      tasks: state.tasks.filter((t) => t.id !== id),
+    }))
+    get().showToast('Task deleted', 'info')
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      await fetch(`${supabaseUrl}/rest/v1/tasks?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+        }
+      })
+    } catch (e) {
+      console.error('[MasSync] Error deleting task in DB:', e)
+    }
+  },
 
   // Memories actions
-  addMemory: (memory) => set((state) => {
+  addMemory: async (memory) => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    const tempId = `temp-mem-${Date.now()}`
     const newMemory: Memory = {
       ...memory,
-      id: `mem-${Date.now()}`,
-      pair_id: state.pairId || 'mock-pair-id-123',
+      id: tempId,
+      pair_id: pairId,
       created_by: 'you',
       type: 'memory',
     }
-    return { memories: [newMemory, ...state.memories] }
-  }),
+    set((state) => ({ memories: [newMemory, ...state.memories] }))
 
-  addOuting: (outing) => set((state) => {
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/memories`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          pair_id: pairId,
+          created_by: userId,
+          date: memory.date,
+          title: memory.title,
+          note: memory.note,
+          mood_emoji: memory.mood_emoji,
+          tags: memory.tags,
+          photo: memory.photo,
+          type: 'memory'
+        })
+      })
+      if (res.ok) {
+        const inserted = await res.json()
+        if (inserted[0]) {
+          set((state) => ({
+            memories: state.memories.map((m) => m.id === tempId ? {
+              ...m,
+              id: inserted[0].id
+            } : m)
+          }))
+        }
+      }
+    } catch (e) {
+      console.error('[MasSync] Error adding memory to DB:', e)
+    }
+  },
+
+  addOuting: async (outing) => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    const tempId = `temp-outing-${Date.now()}`
     const newOuting: Memory = {
       ...outing,
-      id: `outing-${Date.now()}`,
-      pair_id: state.pairId || 'mock-pair-id-123',
+      id: tempId,
+      pair_id: pairId,
       created_by: 'you',
       type: 'outing',
     }
-    return { memories: [newOuting, ...state.memories] }
-  }),
+    set((state) => ({ memories: [newOuting, ...state.memories] }))
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/memories`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          pair_id: pairId,
+          created_by: userId,
+          date: outing.date,
+          title: outing.title,
+          type: 'outing',
+          time: outing.time,
+          place: outing.place,
+          vibe: outing.vibe,
+          location_url: outing.location_url,
+          page_url: outing.page_url,
+          mood_emoji: 'coffee'
+        })
+      })
+      if (res.ok) {
+        const inserted = await res.json()
+        if (inserted[0]) {
+          set((state) => ({
+            memories: state.memories.map((m) => m.id === tempId ? {
+              ...m,
+              id: inserted[0].id
+            } : m)
+          }))
+        }
+      }
+    } catch (e) {
+      console.error('[MasSync] Error adding outing to DB:', e)
+    }
+  },
 
   // Songs actions
-  giftSong: (song) => set((state) => {
+  giftSong: async (song) => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    const tempId = `temp-song-${Date.now()}`
     const newSong: Song = {
       ...song,
-      id: `song-${Date.now()}`,
-      pair_id: state.pairId || 'mock-pair-id-123',
+      id: tempId,
+      pair_id: pairId,
       gifted_by: 'you',
       gifted_at: new Date().toISOString().split('T')[0],
     }
-    return { songs: [newSong, ...state.songs] }
-  }),
+    set((state) => ({ songs: [newSong, ...state.songs] }))
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/songs`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          pair_id: pairId,
+          gifted_by: userId,
+          title: song.title,
+          artist: song.artist,
+          message: song.message,
+          gifted_at: new Date().toISOString().split('T')[0]
+        })
+      })
+      if (res.ok) {
+        const inserted = await res.json()
+        if (inserted[0]) {
+          set((state) => ({
+            songs: state.songs.map((s) => s.id === tempId ? {
+              ...s,
+              id: inserted[0].id
+            } : s)
+          }))
+        }
+        get().showToast('Song gifted 🎵', 'success')
+      }
+    } catch (e) {
+      console.error('[MasSync] Error gifting song:', e)
+      get().showToast('Failed to gift song', 'error')
+    }
+  },
+
+  addGift: async (title: string, note?: string, photo?: string, link?: string) => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    const tempId = `temp-gift-${Date.now()}`
+    const newGift: Memory = {
+      id: tempId,
+      pair_id: pairId,
+      created_by: 'you',
+      date: new Date().toISOString().split('T')[0],
+      title: title,
+      note: note,
+      photo: photo,
+      page_url: link,
+      mood_emoji: 'gift',
+      tags: ['gift'],
+      type: 'gift'
+    }
+    set((state) => ({ memories: [newGift, ...state.memories] }))
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/memories`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          pair_id: pairId,
+          created_by: userId,
+          date: new Date().toISOString().split('T')[0],
+          title: title,
+          note: note,
+          photo: photo,
+          page_url: link,
+          mood_emoji: 'gift',
+          tags: ['gift'],
+          type: 'gift'
+        })
+      })
+      if (res.ok) {
+        const inserted = await res.json()
+        if (inserted[0]) {
+          set((state) => ({
+            memories: state.memories.map((m) => m.id === tempId ? {
+              ...m,
+              id: inserted[0].id
+            } : m)
+          }))
+        }
+        get().showToast('Gift idea saved 🎁', 'success')
+      }
+    } catch (e) {
+      console.error('[MasSync] Error adding gift to DB:', e)
+      get().showToast('Failed to save gift idea', 'error')
+    }
+  },
+
+  deleteGift: async (id: string) => {
+    set((state) => ({
+      memories: state.memories.filter((m) => m.id !== id),
+    }))
+    get().showToast('Gift idea removed', 'info')
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      await fetch(`${supabaseUrl}/rest/v1/memories?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+        }
+      })
+    } catch (e) {
+      console.error('[MasSync] Error deleting gift from DB:', e)
+    }
+  },
 
   // Prayer actions
-  togglePrayer: (prayer) => set((state) => ({
-    myPrayers: {
-      ...state.myPrayers,
-      [prayer]: !state.myPrayers[prayer],
-    },
-  })),
+  togglePrayer: async (prayer) => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    let updatedPrayers = { ...get().myPrayers }
+    updatedPrayers[prayer] = !updatedPrayers[prayer]
+
+    set({ myPrayers: updatedPrayers })
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const todayStr = new Date().toISOString().split('T')[0]
+      const res = await fetch(`${supabaseUrl}/rest/v1/prayer_logs?on_conflict=user_id,date`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify({
+          pair_id: pairId,
+          user_id: userId,
+          date: todayStr,
+          fajr: updatedPrayers.fajr,
+          dhuhr: updatedPrayers.dhuhr,
+          asr: updatedPrayers.asr,
+          maghrib: updatedPrayers.maghrib,
+          isha: updatedPrayers.isha
+        })
+      })
+
+      if (!res.ok) {
+        throw new Error(await res.text())
+      }
+    } catch (e) {
+      console.error('[MasSync] Error updating prayers in DB:', e)
+      // Revert state if failed
+      set({ myPrayers: get().myPrayers })
+    }
+  },
+
+  // Athkar actions
+  incrementThikrCount: async (thikrId, maxCount) => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    const currentCount = get().myAthkar[thikrId] || 0
+    if (currentCount >= maxCount) return
+
+    const newCount = currentCount + 1
+    const updatedAthkar = { ...get().myAthkar, [thikrId]: newCount }
+
+    set({ myAthkar: updatedAthkar })
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const todayStr = new Date().toISOString().split('T')[0]
+      const res = await fetch(`${supabaseUrl}/rest/v1/athkar_logs?on_conflict=user_id,date,thikr_id`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify({
+          pair_id: pairId,
+          user_id: userId,
+          date: todayStr,
+          thikr_id: thikrId,
+          current_count: newCount
+        })
+      })
+
+      if (!res.ok) {
+        throw new Error(await res.text())
+      }
+    } catch (e) {
+      console.error('[MasSync] Error updating Athkar count in DB:', e)
+      // Revert count if failed
+      set({ myAthkar: get().myAthkar })
+    }
+  },
+
+  resetAthkarLogs: async (ids) => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    const updatedAthkar = { ...get().myAthkar }
+    ids.forEach((id) => {
+      updatedAthkar[id] = 0
+    })
+    set({ myAthkar: updatedAthkar })
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const todayStr = new Date().toISOString().split('T')[0]
+      const body = ids.map((id) => ({
+        pair_id: pairId,
+        user_id: userId,
+        date: todayStr,
+        thikr_id: id,
+        current_count: 0
+      }))
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/athkar_logs?on_conflict=user_id,date,thikr_id`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify(body)
+      })
+
+      if (!res.ok) {
+        throw new Error(await res.text())
+      }
+    } catch (e) {
+      console.error('[MasSync] Error resetting Athkar logs in DB:', e)
+      // Revert state if failed
+      set({ myAthkar: get().myAthkar })
+    }
+  },
 
   // Hobbies actions
-  addHobby: (hobby) => set((state) => {
+  addHobby: async (hobby) => {
+    const pairId = get().pairId
+    if (!pairId) return
+
+    const tempId = `temp-hobby-${Date.now()}`
     const newHobby: Hobby = {
       ...hobby,
-      id: `hobby-${Date.now()}`,
-      pair_id: state.pairId || 'mock-pair-id-123',
+      id: tempId,
+      pair_id: pairId,
     }
-    return { hobbies: [...state.hobbies, newHobby] }
-  }),
+    set((state) => ({ hobbies: [...state.hobbies, newHobby] }))
 
-  toggleHobbyStep: (hobbyId, stepId) => set((state) => ({
-    hobbies: state.hobbies.map((h) =>
-      h.id === hobbyId
-        ? {
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/hobbies`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          pair_id: pairId,
+          name: hobby.name,
+          description: hobby.description,
+          cover_image: hobby.cover_image,
+          start_date: hobby.start_date,
+          goal_date: hobby.goal_date,
+          status: hobby.status,
+          steps: hobby.steps,
+          notes: hobby.notes,
+          photos: hobby.photos
+        })
+      })
+      if (res.ok) {
+        const inserted = await res.json()
+        if (inserted[0]) {
+          set((state) => ({
+            hobbies: state.hobbies.map((h) => h.id === tempId ? {
+              ...h,
+              id: inserted[0].id
+            } : h)
+          }))
+        }
+      }
+    } catch (e) {
+      console.error('[MasSync] Error adding hobby to DB:', e)
+    }
+  },
+
+  toggleHobbyStep: async (hobbyId, stepId) => {
+    let updatedHobby: Hobby | null = null
+    set((state) => {
+      const updatedHobbies = state.hobbies.map((h) => {
+        if (h.id === hobbyId) {
+          const next = {
             ...h,
             steps: h.steps.map((s) => (s.id === stepId ? { ...s, is_done: !s.is_done } : s)),
           }
-        : h
-    ),
-  })),
+          updatedHobby = next
+          return next
+        }
+        return h
+      })
+      return { hobbies: updatedHobbies }
+    })
 
-  addHobbyNote: (hobbyId, note) => set((state) => ({
-    hobbies: state.hobbies.map((h) =>
-      h.id === hobbyId
-        ? {
+    if (!updatedHobby) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      await fetch(`${supabaseUrl}/rest/v1/hobbies?id=eq.${hobbyId}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          steps: (updatedHobby as Hobby).steps
+        })
+      })
+    } catch (e) {
+      console.error('[MasSync] Error toggling hobby step in DB:', e)
+    }
+  },
+
+  addHobbyNote: async (hobbyId, note) => {
+    let updatedHobby: Hobby | null = null
+    set((state) => {
+      const updatedHobbies = state.hobbies.map((h) => {
+        if (h.id === hobbyId) {
+          const next = {
             ...h,
             notes: [...h.notes, note],
           }
-        : h
-    ),
-  })),
+          updatedHobby = next
+          return next
+        }
+        return h
+      })
+      return { hobbies: updatedHobbies }
+    })
 
-  addHobbyPhoto: (hobbyId, photoUrl) => set((state) => ({
-    hobbies: state.hobbies.map((h) =>
-      h.id === hobbyId
-        ? {
+    if (!updatedHobby) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      await fetch(`${supabaseUrl}/rest/v1/hobbies?id=eq.${hobbyId}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          notes: (updatedHobby as Hobby).notes
+        })
+      })
+    } catch (e) {
+      console.error('[MasSync] Error adding hobby note to DB:', e)
+    }
+  },
+
+  addHobbyPhoto: async (hobbyId, photoUrl) => {
+    let updatedHobby: Hobby | null = null
+    set((state) => {
+      const updatedHobbies = state.hobbies.map((h) => {
+        if (h.id === hobbyId) {
+          const next = {
             ...h,
             photos: [...h.photos, photoUrl],
           }
-        : h
-    ),
-  })),
+          updatedHobby = next
+          return next
+        }
+        return h
+      })
+      return { hobbies: updatedHobbies }
+    })
+
+    if (!updatedHobby) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      await fetch(`${supabaseUrl}/rest/v1/hobbies?id=eq.${hobbyId}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          photos: (updatedHobby as Hobby).photos
+        })
+      })
+    } catch (e) {
+      console.error('[MasSync] Error adding hobby photo to DB:', e)
+    }
+  },
 
   // Watchlist actions
   addWatchItem: (item) => set((state) => {
@@ -670,6 +1319,70 @@ export const useAppStore = create<AppState>((set, get) => ({
   })),
 
   completeDailyChallenge: () => set({ dailyChallengeDone: true }),
+
+  updateQuranPage: async (page: number) => {
+    const user = get().user
+    if (!user) return
+
+    set({ userQuranPage: page })
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(
+        `${supabaseUrl}/rest/v1/users?id=eq.${user.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'apikey': supabaseAnonKey,
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ quran_page: page })
+        }
+      )
+
+      if (!res.ok) {
+        throw new Error(await res.text())
+      }
+    } catch (e) {
+      console.error('[MasSync] Error updating quran_page in DB:', e)
+    }
+  },
+
+  updateQuranTarget: async (target: string) => {
+    const pairId = get().pairId
+    if (!pairId) return
+
+    set({ quranTarget: target })
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(
+        `${supabaseUrl}/rest/v1/pairs?id=eq.${pairId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'apikey': supabaseAnonKey,
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ quran_target: target })
+        }
+      )
+
+      if (!res.ok) {
+        throw new Error(await res.text())
+      }
+    } catch (e) {
+      console.error('[MasSync] Error updating quran_target in DB:', e)
+    }
+  },
 
   addTreeNode: (target, node) => set((state) => {
     const key = `tree_nodes_${target}`
@@ -876,6 +1589,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         pairId: profile.pair_id || null,
         userAvatar: profile.avatar_url || '',
         userVibe: profile.vibe_status !== undefined && profile.vibe_status !== null ? profile.vibe_status : localVibe,
+        userQuranPage: profile.quran_page || 1,
         dbError: null,
       })
 
@@ -902,13 +1616,28 @@ export const useAppStore = create<AppState>((set, get) => ({
             const partner = partnerRows[0]
             if (partner) {
               set({
+                partnerId: partnerId,
                 partnerName: partner.display_name || 'Friend',
                 partnerCity: partner.city || '',
                 pairStatus: 'active',
                 partnerAvatar: partner.avatar_url || '',
                 partnerVibe: partner.vibe_status || '',
+                partnerLastSeen: partner.last_seen_at || null,
                 friendshipDuration: durationStr,
+                partnerQuranPage: partner.quran_page || 1,
+                quranTarget: pair.quran_target || 'Finish Al-Baqarah by Sunday',
               })
+
+              // Synchronize all data fetches and realtime channels when active
+              get().fetchTasks()
+              get().fetchSongs()
+              get().fetchMemories()
+              get().fetchPrayers()
+              get().fetchAthkarLogs()
+              get().fetchHobbies().catch(() => {})
+              get().subscribeToPresence()
+              get().subscribeToDatabaseChanges()
+              get().updateLastSeen()
               return
             }
           }
@@ -952,6 +1681,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   logout: async () => {
+    // Unsubscribe from channels
+    get().unsubscribeFromPresence()
+    get().unsubscribeFromDatabaseChanges()
+
     // Run signOut in the background so network hangs don't block the UI logout
     supabase.auth.signOut().catch((err) => {
       console.error('Error during Supabase signout:', err)
@@ -967,7 +1700,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       partnerName: '',
       userCity: '',
       partnerCity: '',
-      dbError: null
+      dbError: null,
+      onlineUsers: [],
+      partnerLastSeen: null,
+      tasks: [],
+      memories: [],
+      songs: [],
+      hobbies: [],
+      myPrayers: { fajr: false, dhuhr: false, asr: false, maghrib: false, isha: false },
+      partnerPrayers: { fajr: false, dhuhr: false, asr: false, maghrib: false, isha: false }
     })
   },
 
@@ -998,8 +1739,16 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     get().unsubscribeFromRealtime()
 
+    const channelName = `public:users:id=eq.${user.id}`
+    const existing = supabase.getChannels().find(
+      (c: any) => c.name === channelName || c.topic === `realtime:${channelName}`
+    )
+    if (existing) {
+      supabase.removeChannel(existing)
+    }
+
     activeChannel = supabase
-      .channel(`public:users:id=eq.${user.id}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -1022,6 +1771,376 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (activeChannel) {
       supabase.removeChannel(activeChannel)
       activeChannel = null
+    }
+  },
+
+  subscribeToPresence: () => {
+    const user = get().user
+    const pairId = get().pairId
+    if (!user || !pairId) return
+
+    if (presenceChannel && subscribedPresencePairId === pairId) {
+      return // already subscribed to this pair
+    }
+
+    get().unsubscribeFromPresence()
+
+    const channelName = `presence:pair:${pairId}`
+    const existing = supabase.getChannels().find(
+      (c: any) => c.name === channelName || c.topic === `realtime:${channelName}`
+    )
+    if (existing) {
+      supabase.removeChannel(existing)
+    }
+
+    subscribedPresencePairId = pairId
+    presenceChannel = supabase.channel(channelName)
+
+    presenceChannel
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState()
+        const onlineIds = Object.keys(state)
+        set({ onlineUsers: onlineIds })
+      })
+      .subscribe(async (status: string) => {
+        if (status === 'SUBSCRIBED') {
+          await presenceChannel.track({
+            user_id: user.id,
+            online_at: new Date().toISOString(),
+          })
+        }
+      })
+  },
+
+  unsubscribeFromPresence: () => {
+    if (presenceChannel) {
+      supabase.removeChannel(presenceChannel)
+      presenceChannel = null
+      subscribedPresencePairId = null
+    }
+    set({ onlineUsers: [] })
+  },
+
+  subscribeToDatabaseChanges: () => {
+    const pairId = get().pairId
+    const user = get().user
+    if (!pairId || !user) return
+
+    if (dbChangesChannel && subscribedPairId === pairId) {
+      return // already subscribed to this pair
+    }
+
+    get().unsubscribeFromDatabaseChanges()
+
+    const channelName = `db-changes:${pairId}`
+    const existing = supabase.getChannels().find(
+      (c: any) => c.name === channelName || c.topic === `realtime:${channelName}`
+    )
+    if (existing) {
+      supabase.removeChannel(existing)
+    }
+
+    subscribedPairId = pairId
+    dbChangesChannel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks', filter: `pair_id=eq.${pairId}` },
+        () => { get().fetchTasks() }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'songs', filter: `pair_id=eq.${pairId}` },
+        () => { get().fetchSongs() }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'memories', filter: `pair_id=eq.${pairId}` },
+        () => { get().fetchMemories() }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'prayer_logs', filter: `pair_id=eq.${pairId}` },
+        () => { get().fetchPrayers() }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'athkar_logs', filter: `pair_id=eq.${pairId}` },
+        () => { get().fetchAthkarLogs() }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'hobbies', filter: `pair_id=eq.${pairId}` },
+        () => { get().fetchHobbies().catch(() => {}) }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'users' },
+        async (payload: any) => {
+          const updatedUser = payload.new as any
+          if (updatedUser.id === user.id || updatedUser.pair_id === pairId) {
+            await get().fetchProfileAndPartner(user.id)
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'pairs', filter: `id=eq.${pairId}` },
+        async (payload: any) => {
+          const updatedPair = payload.new as any
+          set({
+            quranTarget: updatedPair.quran_target || 'Finish Al-Baqarah by Sunday',
+            friendshipDuration: updatedPair.friends_since ? getFriendshipDurationStr(updatedPair.friends_since) : get().friendshipDuration
+          })
+        }
+      )
+      .subscribe()
+  },
+
+  unsubscribeFromDatabaseChanges: () => {
+    if (dbChangesChannel) {
+      supabase.removeChannel(dbChangesChannel)
+      dbChangesChannel = null
+      subscribedPairId = null
+    }
+  },
+
+  updateLastSeen: async () => {
+    const user = get().user
+    if (!user) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      await fetch(
+        `${supabaseUrl}/rest/v1/users?id=eq.${user.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'apikey': supabaseAnonKey,
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ last_seen_at: new Date().toISOString() })
+        }
+      )
+    } catch (e) {
+      console.warn('[MasSync] Failed to update last_seen_at (database schema might need to be run):', e)
+    }
+  },
+
+  fetchTasks: async () => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/tasks?pair_id=eq.${pairId}&order=created_at.desc`, {
+        headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const mappedTasks: Task[] = data.map((t: any) => ({
+          id: t.id,
+          pair_id: t.pair_id,
+          title: t.title,
+          category: t.category,
+          recurrence: t.recurrence,
+          is_done: t.is_done,
+          created_by: t.created_by === userId ? 'you' : 'partner',
+          done_by: t.done_by ? (t.done_by === userId ? 'you' : 'partner') : undefined,
+          done_at: t.done_at,
+          date: t.date
+        }))
+        set({ tasks: mappedTasks })
+      }
+    } catch (e) {
+      console.error('[MasSync] Error fetching tasks:', e)
+    }
+  },
+
+  fetchSongs: async () => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/songs?pair_id=eq.${pairId}&order=gifted_at.desc`, {
+        headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const mappedSongs: Song[] = data.map((s: any) => ({
+          id: s.id,
+          pair_id: s.pair_id,
+          title: s.title,
+          artist: s.artist,
+          message: s.message || '',
+          gifted_by: s.gifted_by === userId ? 'you' : 'partner',
+          gifted_at: s.gifted_at
+        }))
+        set({ songs: mappedSongs })
+      }
+    } catch (e) {
+      console.error('[MasSync] Error fetching songs:', e)
+    }
+  },
+
+  fetchMemories: async () => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/memories?pair_id=eq.${pairId}&order=date.desc`, {
+        headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const mappedMemories: Memory[] = data.map((m: any) => ({
+          id: m.id,
+          pair_id: m.pair_id,
+          created_by: m.created_by === userId ? 'you' : 'partner',
+          date: m.date,
+          title: m.title,
+          note: m.note,
+          mood_emoji: m.mood_emoji,
+          tags: m.tags || [],
+          photo: m.photo,
+          type: m.type,
+          time: m.time,
+          place: m.place,
+          vibe: m.vibe,
+          page_url: m.page_url
+        }))
+        set({ memories: mappedMemories })
+      }
+    } catch (e) {
+      console.error('[MasSync] Error fetching memories:', e)
+    }
+  },
+
+  fetchPrayers: async () => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const todayStr = new Date().toISOString().split('T')[0]
+      const res = await fetch(`${supabaseUrl}/rest/v1/prayer_logs?pair_id=eq.${pairId}&date=eq.${todayStr}`, {
+        headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const rows = await res.json()
+        let myLog = { fajr: false, dhuhr: false, asr: false, maghrib: false, isha: false }
+        let partnerLog = { fajr: false, dhuhr: false, asr: false, maghrib: false, isha: false }
+
+        rows.forEach((row: any) => {
+          const mapped = {
+            fajr: row.fajr,
+            dhuhr: row.dhuhr,
+            asr: row.asr,
+            maghrib: row.maghrib,
+            isha: row.isha
+          }
+          if (row.user_id === userId) {
+            myLog = mapped
+          } else {
+            partnerLog = mapped
+          }
+        })
+
+        set({ myPrayers: myLog, partnerPrayers: partnerLog })
+      }
+    } catch (e) {
+      console.error('[MasSync] Error fetching prayers:', e)
+    }
+  },
+
+  fetchAthkarLogs: async () => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const todayStr = new Date().toISOString().split('T')[0]
+      const res = await fetch(`${supabaseUrl}/rest/v1/athkar_logs?pair_id=eq.${pairId}&date=eq.${todayStr}`, {
+        headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const rows = await res.json()
+        let myLog: { [key: string]: number } = {}
+        let partnerLog: { [key: string]: number } = {}
+
+        rows.forEach((row: any) => {
+          if (row.user_id === userId) {
+            myLog[row.thikr_id] = row.current_count
+          } else {
+            partnerLog[row.thikr_id] = row.current_count
+          }
+        })
+
+        set({ myAthkar: myLog, partnerAthkar: partnerLog })
+      }
+    } catch (e) {
+      console.error('[MasSync] Error fetching Athkar logs:', e)
+    }
+  },
+
+  fetchHobbies: async () => {
+    const pairId = get().pairId
+    if (!pairId) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/hobbies?pair_id=eq.${pairId}`, {
+        headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const mappedHobbies: Hobby[] = data.map((h: any) => ({
+          id: h.id,
+          pair_id: h.pair_id,
+          name: h.name,
+          description: h.description || '',
+          cover_image: h.cover_image || '',
+          start_date: h.start_date || '',
+          goal_date: h.goal_date || '',
+          status: h.status,
+          steps: h.steps || [],
+          notes: h.notes || [],
+          photos: h.photos || []
+        }))
+        set({ hobbies: mappedHobbies })
+      }
+    } catch (e) {
+      console.error('[MasSync] Error fetching hobbies:', e)
+      throw e // Let it fail silently or gracefully in caller
     }
   }
 }))

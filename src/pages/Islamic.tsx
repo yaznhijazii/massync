@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import type { PrayerLog } from '../store/useAppStore'
-import { Book, Check, Sparkles, Sunrise, Sunset, Moon, Heart, BookOpen, Clock, Sun, SunDim } from 'lucide-react'
+import { Book, Check, Leaf, Sunrise, Sunset, Moon, Heart, BookOpen, Clock, Sun, SunDim, Play, Pause, Radio, Shuffle, Star } from 'lucide-react'
 
 interface AthkarItem {
   id: string
@@ -70,7 +70,30 @@ const PRAYER_THEMES: {
 }
 
 export default function Islamic() {
-  const { myPrayers, partnerPrayers, partnerName, togglePrayer } = useAppStore()
+  const { 
+    myPrayers, 
+    partnerPrayers, 
+    myAthkar,
+    partnerAthkar,
+    partnerName, 
+    pairStatus,
+    userQuranPage,
+    partnerQuranPage,
+    quranTarget,
+    togglePrayer, 
+    fetchPrayers,
+    fetchAthkarLogs,
+    incrementThikrCount,
+    resetAthkarLogs,
+    updateQuranPage,
+    updateQuranTarget
+  } = useAppStore()
+  
+  useEffect(() => {
+    fetchPrayers()
+    fetchAthkarLogs()
+  }, [fetchPrayers, fetchAthkarLogs])
+
   const [activeTab, setActiveTab] = useState<'prayer' | 'athkar' | 'quran'>('prayer')
   
   // Prayer Times API State
@@ -196,42 +219,37 @@ export default function Islamic() {
     fetchAthkar()
   }, [athkarTab])
 
-  const handleAthkarCount = (id: string, type: 'morning' | 'evening') => {
-    const list = type === 'morning' ? morningAthkar : eveningAthkar
-    const setList = type === 'morning' ? setMorningAthkar : setEveningAthkar
-    
-    setList(
-      list.map((item) => {
-        if (item.id === id) {
-          return {
-            ...item,
-            currentCount: item.currentCount < item.count ? item.currentCount + 1 : item.count
-          }
-        }
-        return item
-      })
-    )
+  const handleAthkarCount = (id: string, maxCount: number) => {
+    incrementThikrCount(id, maxCount)
   }
 
-  const handleResetAthkar = (type: 'morning' | 'evening') => {
+  const handleResetAthkar = async (type: 'morning' | 'evening') => {
     const list = type === 'morning' ? morningAthkar : eveningAthkar
-    const setList = type === 'morning' ? setMorningAthkar : setEveningAthkar
-    setList(list.map((item) => ({ ...item, currentCount: 0 })))
+    const ids = list.map((item) => item.id)
+    await resetAthkarLogs(ids)
   }
 
   // Quran Khatma Tracker state
-  const [myQuranPage, setMyQuranPage] = useState(150)
-  const [partnerQuranPage] = useState(182)
   const [isLoggingQuran, setIsLoggingQuran] = useState(false)
   const [logPageInput, setLogPageInput] = useState('')
+  const [isEditingTarget, setIsEditingTarget] = useState(false)
+  const [targetInput, setTargetInput] = useState('')
 
   const handleLogQuran = (e: React.FormEvent) => {
     e.preventDefault()
     const p = parseInt(logPageInput)
     if (!isNaN(p) && p > 0 && p <= 604) {
-      setMyQuranPage(p)
+      updateQuranPage(p)
       setIsLoggingQuran(false)
       setLogPageInput('')
+    }
+  }
+
+  const handleUpdateTarget = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (targetInput.trim()) {
+      updateQuranTarget(targetInput.trim())
+      setIsEditingTarget(false)
     }
   }
 
@@ -251,10 +269,93 @@ export default function Islamic() {
       arabic: 'وَاصْبِرْ لِحُكْمِ رَبِّكَ فَإِنَّكَ بِأَعْيُنِنَا',
       translation: 'And be patient, [O Muhammad], for the decision of your Lord, for indeed, you are in Our eyes.',
       surah: 'Surah At-Tur, Ayah 48'
+    },
+    {
+      arabic: 'وَمَن يَتَوَكَّلْ عَلَى اللَّهِ فَهُوَ حَسْبُهُ',
+      translation: 'And whoever relies upon Allah - then He is sufficient for him.',
+      surah: 'Surah At-Talaq, Ayah 3'
+    },
+    {
+      arabic: 'رَبَّنَا لَا تُزِغْ قُلُوبَنَا بَعْدَ إِذْ هَدَيْتَنَا',
+      translation: 'Our Lord, let not our hearts deviate after You have guided us.',
+      surah: 'Surah Ali \'Imran, Ayah 8'
+    },
+    {
+      arabic: 'إِنَّ اللَّهَ مَعَ الصَّابِرِينَ',
+      translation: 'Indeed, Allah is with the patient.',
+      surah: 'Surah Al-Baqarah, Ayah 153'
+    },
+    {
+      arabic: 'أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ',
+      translation: 'Unquestionably, by the remembrance of Allah hearts are assured.',
+      surah: 'Surah Ar-Ra\'d, Ayah 28'
+    },
+    {
+      arabic: 'وَقُل رَّبِّ زِدْنِي عِلْمًا',
+      translation: 'And say, "My Lord, increase me in knowledge."',
+      surah: 'Surah Taha, Ayah 114'
+    },
+    {
+      arabic: 'ادْعُونِي أَسْتَجِبْ لَكُمْ',
+      translation: 'Call upon Me; I will respond to you.',
+      surah: 'Surah Ghafir, Ayah 60'
     }
   ]
-  const [currentVerseIndex] = useState(0)
+
+  const [currentVerseIndex, setCurrentVerseIndex] = useState(0)
+
+  useEffect(() => {
+    const randomIndex = Math.floor(Math.random() * verses.length)
+    setCurrentVerseIndex(randomIndex)
+  }, [])
+
+  const handleShuffleVerse = () => {
+    let newIndex = currentVerseIndex
+    while (newIndex === currentVerseIndex) {
+      newIndex = Math.floor(Math.random() * verses.length)
+    }
+    setCurrentVerseIndex(newIndex)
+  }
+
   const verse = verses[currentVerseIndex]
+
+  // Quran Radio State & Logic
+  const RADIO_STATIONS = [
+    { value: 'mix', label: 'Main Radio' },
+    { value: 'albaghara', label: 'Al-Baqarah' },
+    { value: 'sakina', label: 'Sakina (Calm)' },
+    { value: 'tafseer', label: 'Tafseer' },
+    { value: 'tarabeel', label: 'Short Recitation' }
+  ]
+  const [isPlayingRadio, setIsPlayingRadio] = useState(false)
+  const [activeStation, setActiveStation] = useState('mix')
+  const [audio] = useState(() => {
+    const aud = new Audio('https://qurango.net/radio/mix')
+    aud.preload = 'none'
+    return aud
+  })
+
+  useEffect(() => {
+    audio.src = `https://qurango.net/radio/${activeStation}`
+    if (isPlayingRadio) {
+      audio.play().catch((err) => console.log('Audio playback failed:', err))
+    }
+  }, [activeStation, audio])
+
+  useEffect(() => {
+    if (isPlayingRadio) {
+      audio.play().catch((err) => console.log('Audio playback failed:', err))
+    } else {
+      audio.pause()
+    }
+  }, [isPlayingRadio, audio])
+
+  useEffect(() => {
+    return () => {
+      audio.pause()
+      audio.src = ''
+    }
+  }, [audio])
 
   const prayersList: { key: keyof PrayerLog; label: string; icon: any }[] = [
     { key: 'fajr', label: 'Fajr', icon: Sunrise },
@@ -269,16 +370,17 @@ export default function Islamic() {
       {/* Header */}
       <header className="flex justify-between items-center mb-6">
         <div>
-          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-100/70 border border-emerald-200/50 px-3.5 py-1.5 rounded-full select-none flex items-center gap-1.5">
+          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1.5 rounded-full select-none inline-flex items-center gap-1.5">
             <span>{hijriDate}</span>
-            <Moon size={11} className="text-emerald-600 animate-pulse" />
+            <Moon size={11} className="text-emerald-600" />
           </span>
           <h1 className="text-4xl font-extrabold text-brand-dark mt-3.5 tracking-tight">
             Islamic Corner
           </h1>
         </div>
-        <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center shadow-inner">
-          <Moon className="text-emerald-600 fill-emerald-600 animate-pulse" size={20} />
+        <div className="w-12 h-12 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 shadow-sm flex items-center justify-center relative overflow-hidden shrink-0">
+          <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/10 to-teal-500/5 opacity-50" />
+          <Moon className="text-emerald-600 fill-emerald-600/10 relative z-10" size={18} strokeWidth={2.5} />
         </div>
       </header>
 
@@ -294,7 +396,7 @@ export default function Islamic() {
                 : 'text-slate-400 hover:text-slate-600'
             }`}
           >
-            {tab === 'prayer' && <Sparkles size={13} />}
+            {tab === 'prayer' && <BookOpen size={13} />}
             {tab === 'athkar' && <Clock size={13} />}
             {tab === 'quran' && <BookOpen size={13} />}
             {tab === 'prayer' ? 'Prayers' : tab === 'athkar' ? 'Athkar' : 'Quran'}
@@ -441,12 +543,15 @@ export default function Islamic() {
               </div>
             ) : (
               (athkarTab === 'morning' ? morningAthkar : eveningAthkar).map((item) => {
-                const isCompleted = item.currentCount >= item.count
+                const myCount = myAthkar[item.id] || 0
+                const partnerCount = partnerAthkar[item.id] || 0
+                const isCompleted = myCount >= item.count
+                const isPartnerCompleted = partnerCount >= item.count
                 
                 return (
                   <button
                     key={item.id}
-                    onClick={() => handleAthkarCount(item.id, athkarTab)}
+                    onClick={() => handleAthkarCount(item.id, item.count)}
                     className={`card-soft w-full text-left bg-white border transition-all duration-300 relative overflow-hidden group hover:scale-[1.015] hover:shadow-soft active-pop p-5 ${
                       isCompleted
                         ? 'border-emerald-500/35 bg-emerald-50/5 shadow-[0_12px_24px_rgba(16,185,129,0.02)]'
@@ -476,13 +581,13 @@ export default function Islamic() {
                               }`}
                               strokeWidth={3}
                               strokeDasharray={2 * Math.PI * 13}
-                              strokeDashoffset={2 * Math.PI * 13 - (item.currentCount / item.count) * (2 * Math.PI * 13)}
+                              strokeDashoffset={2 * Math.PI * 13 - (myCount / item.count) * (2 * Math.PI * 13)}
                               strokeLinecap="round"
                               fill="transparent"
                             />
                           </svg>
                           <span className="absolute text-[9px] font-black text-emerald-800">
-                            {item.currentCount}
+                            {myCount}
                           </span>
                         </div>
                         <span className="text-[10px] text-slate-400 font-extrabold uppercase">
@@ -492,6 +597,20 @@ export default function Islamic() {
 
                       {/* Right: Goal and Status Badge */}
                       <div className="flex items-center space-x-2">
+                        {/* Partner progress badge */}
+                        {pairStatus === 'active' && (
+                          isPartnerCompleted ? (
+                            <span className="text-[9px] font-black uppercase text-cyan-600 bg-cyan-500/10 border border-cyan-500/25 px-2 py-1 rounded-lg flex items-center gap-1 select-none" title={`${partnerName} completed`}>
+                              {partnerName} Done
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-black uppercase text-slate-500 bg-slate-50 border border-slate-200/60 px-2 py-1 rounded-lg select-none">
+                              {partnerName}: {partnerCount}/{item.count}
+                            </span>
+                          )
+                        )}
+
+                        {/* Your Status Badge */}
                         {isCompleted ? (
                           <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 rounded-lg flex items-center gap-1 select-none animate-scale-in">
                             <Check size={10} strokeWidth={3} />
@@ -499,7 +618,7 @@ export default function Islamic() {
                           </span>
                         ) : (
                           <span className="text-[9px] font-black uppercase text-slate-500 bg-slate-50 border border-slate-200/60 px-2.5 py-1 rounded-lg select-none">
-                            Goal: {item.currentCount}/{item.count}
+                            Goal: {myCount}/{item.count}
                           </span>
                         )}
                       </div>
@@ -513,7 +632,7 @@ export default function Islamic() {
                     {/* Virtue / Bless (Arabic Text styled properly) */}
                     {item.translation && (
                       <div className="bg-emerald-50/20 border border-emerald-100/30 p-3.5 rounded-2xl text-[12px] text-emerald-800/80 leading-relaxed font-bold text-center dir-rtl w-full mt-2 select-none flex items-start gap-2 justify-center">
-                        <Sparkles size={12} className="text-emerald-500 mt-0.5 shrink-0 animate-pulse" />
+                        <Leaf size={12} className="text-emerald-500 mt-0.5 shrink-0" />
                         <span>{item.translation}</span>
                       </div>
                     )}
@@ -534,9 +653,19 @@ export default function Islamic() {
               قرآن
             </div>
             
-            <div className="flex items-center space-x-2 text-emerald-400 mb-4">
-              <Sparkles size={14} className="animate-pulse" />
-              <span className="text-[10px] font-black uppercase tracking-wider">Verse of the Day</span>
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center space-x-2 text-emerald-400">
+                <Star size={14} className="text-emerald-400" />
+                <span className="text-[10px] font-black uppercase tracking-wider">Verse of the Day</span>
+              </div>
+              <button 
+                type="button" 
+                onClick={handleShuffleVerse}
+                className="text-slate-400 hover:text-emerald-400 p-1.5 rounded-xl hover:bg-white/10 active-pop transition-all shrink-0"
+                title="Shuffle Verse"
+              >
+                <Shuffle size={13} />
+              </button>
             </div>
 
             <p className="text-2xl font-bold text-right leading-loose mb-4 font-arabic dir-rtl text-slate-100 selection:bg-emerald-500 select-none">
@@ -550,6 +679,78 @@ export default function Islamic() {
             </span>
           </section>
 
+          {/* Quran Live Radio Player */}
+          <section className="card-soft bg-white/70 border border-white/50 p-5 shadow-soft">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100/50 mb-3.5">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+                  <Radio size={15} className={`text-emerald-600 ${isPlayingRadio ? 'animate-pulse' : ''}`} />
+                </div>
+                <div>
+                  <h4 className="font-black text-sm text-brand-dark">Quran Live Radio</h4>
+                  <p className="text-[10px] font-bold text-slate-400">Peaceful recitations together</p>
+                </div>
+              </div>
+              
+              {/* Equalizer Visualizer */}
+              {isPlayingRadio && (
+                <div className="flex items-end space-x-0.5 h-3.5 w-5 overflow-hidden shrink-0 pb-0.5">
+                  <span className="w-[2.5px] h-full bg-emerald-500 rounded-t origin-bottom eq-bar-1" />
+                  <span className="w-[2.5px] h-full bg-emerald-500 rounded-t origin-bottom eq-bar-2" />
+                  <span className="w-[2.5px] h-full bg-emerald-500 rounded-t origin-bottom eq-bar-3" />
+                  <span className="w-[2.5px] h-full bg-emerald-500 rounded-t origin-bottom eq-bar-4" />
+                  <span className="w-[2.5px] h-full bg-emerald-500 rounded-t origin-bottom eq-bar-5" />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-4">
+              {/* Station Selection (Horizontal scrollable pills) */}
+              <div className="flex-1 min-w-0">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">Select Channel</span>
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin select-none">
+                  {RADIO_STATIONS.map((st) => {
+                    const isActive = activeStation === st.value
+                    return (
+                      <button
+                        key={st.value}
+                        type="button"
+                        onClick={() => {
+                          setActiveStation(st.value)
+                          setIsPlayingRadio(true) // autoplay on click
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider shrink-0 transition-all active-pop border ${
+                          isActive 
+                            ? 'bg-emerald-500 border-emerald-400 text-white shadow-sm shadow-emerald-500/15' 
+                            : 'bg-slate-50 border-slate-200/60 text-slate-500 hover:bg-slate-100'
+                        }`}
+                      >
+                        {st.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Play/Pause Trigger */}
+              <button
+                type="button"
+                onClick={() => setIsPlayingRadio(!isPlayingRadio)}
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 active-pop transition-all border ${
+                  isPlayingRadio 
+                    ? 'bg-emerald-500 border-emerald-400 text-white shadow-lg shadow-emerald-500/25' 
+                    : 'bg-white border-slate-200 hover:border-emerald-500 text-slate-700'
+                }`}
+              >
+                {isPlayingRadio ? (
+                  <Pause size={18} strokeWidth={2.5} className="fill-white" />
+                ) : (
+                  <Play size={18} strokeWidth={2.5} className="fill-slate-700 ml-0.5" />
+                )}
+              </button>
+            </div>
+          </section>
+
           {/* Reading & Khatma progress */}
           <section className="card-soft bg-white/70 border border-white/50">
             <h3 className="font-black text-base text-brand-dark mb-4">Khatma Tracker Together</h3>
@@ -558,10 +759,13 @@ export default function Islamic() {
             <div className="mb-6 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
               <div className="flex justify-between items-center text-xs font-black mb-2 select-none">
                 <span className="text-slate-400 uppercase">Joint Progress</span>
-                <span className="text-brand-purple">27.5% Completed</span>
+                <span className="text-brand-purple">{((Math.max(userQuranPage, partnerQuranPage) / 604) * 100).toFixed(1)}% Completed</span>
               </div>
               <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden shadow-inner">
-                <div className="h-full bg-gradient-to-r from-emerald-500 to-brand-cyan transition-all duration-500 rounded-full" style={{ width: '27.5%' }}></div>
+                <div 
+                  className="h-full bg-gradient-to-r from-emerald-500 to-brand-cyan transition-all duration-500 rounded-full" 
+                  style={{ width: `${Math.min(100, Math.max(0, (Math.max(userQuranPage, partnerQuranPage) / 604) * 100))}%` }}
+                ></div>
               </div>
             </div>
 
@@ -569,9 +773,12 @@ export default function Islamic() {
               {/* My Progress */}
               <div className="bg-slate-50/50 border border-slate-100/50 p-4 rounded-2xl text-center shadow-inner">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Your Page</span>
-                <p className="text-3xl font-black text-brand-dark font-mono">{myQuranPage}</p>
+                <p className="text-3xl font-black text-brand-dark font-mono">{userQuranPage}</p>
                 <button
-                  onClick={() => setIsLoggingQuran(true)}
+                  onClick={() => {
+                    setLogPageInput(userQuranPage.toString())
+                    setIsLoggingQuran(true)
+                  }}
                   className="mt-3.5 text-xs font-black text-emerald-700 bg-emerald-100/60 hover:bg-emerald-100 border border-emerald-200/20 px-3 py-2 rounded-xl w-full active-pop shadow-sm transition-all"
                 >
                   Log Page
@@ -583,20 +790,30 @@ export default function Islamic() {
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">{partnerName}'s Page</span>
                 <p className="text-3xl font-black text-brand-dark font-mono">{partnerQuranPage}</p>
                 <div className="mt-3.5 text-[10px] font-extrabold text-slate-400 bg-slate-100 border border-slate-200/50 py-2 rounded-xl select-none">
-                  Updated 2h ago
+                  Sync Live
                 </div>
               </div>
             </div>
 
             <div className="flex items-center space-x-2 mt-4 text-[11px] font-extrabold text-slate-450 justify-center">
               <Book size={12} className="text-emerald-500" />
-              <span>Target: Finish Al-Baqarah by Sunday</span>
+              <span>Target: {quranTarget}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetInput(quranTarget)
+                  setIsEditingTarget(true)
+                }}
+                className="text-emerald-600 hover:text-emerald-800 font-bold ml-1 hover:underline active-pop"
+              >
+                Edit Target
+              </button>
             </div>
           </section>
 
           {/* Log page dialog */}
           {isLoggingQuran && (
-            <div className="fixed inset-0 bg-brand-dark/45 backdrop-blur-sm z-50 flex items-end justify-center px-4 pb-8">
+            <div className="fixed inset-0 bg-brand-dark/45 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-slide-up border border-slate-100">
                 <div className="flex justify-between items-center mb-5">
                   <h3 className="font-extrabold text-xl text-brand-dark">Update Quran Page</h3>
@@ -626,6 +843,42 @@ export default function Islamic() {
                     className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-2xl font-bold shadow-lg shadow-emerald-500/20 hover:scale-[0.99] transition-all"
                   >
                     Update Progress
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Edit target dialog */}
+          {isEditingTarget && (
+            <div className="fixed inset-0 bg-brand-dark/45 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-slide-up border border-slate-100">
+                <div className="flex justify-between items-center mb-5">
+                  <h3 className="font-extrabold text-xl text-brand-dark">Edit Khatma Target</h3>
+                  <button onClick={() => setIsEditingTarget(false)} className="text-brand-gray font-bold text-sm bg-slate-100 px-3 py-1.5 rounded-full hover:bg-slate-200">
+                    Cancel
+                  </button>
+                </div>
+
+                <form onSubmit={handleUpdateTarget} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-brand-dark uppercase tracking-wider mb-2">Khatma Target Text</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Finish Al-Baqarah by Sunday"
+                      value={targetInput}
+                      onChange={(e) => setTargetInput(e.target.value)}
+                      className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none font-semibold text-brand-dark text-sm"
+                      required
+                      autoFocus
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-2xl font-bold shadow-lg shadow-emerald-500/20 hover:scale-[0.99] transition-all"
+                  >
+                    Save Target
                   </button>
                 </form>
               </div>

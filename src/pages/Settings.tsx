@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../store/useAppStore'
-import { ArrowLeft, MapPin, Copy, Check, Link2, LogOut, User, Edit3, Save, Sparkles, Upload, Mail } from 'lucide-react'
+import { ArrowLeft, MapPin, Copy, Check, Link2, LogOut, User, Edit3, Save, Wand2, Upload, Mail } from 'lucide-react'
 
 const PRESET_VIBES = [
   'studying',
@@ -299,7 +299,7 @@ export default function Settings() {
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-cyan to-brand-purple"></div>
             <div className="flex justify-between items-center pb-2 border-b border-slate-100">
               <h3 className="font-extrabold text-sm text-brand-dark flex items-center gap-1.5">
-                <Sparkles size={14} className="text-brand-purple" />
+                <Wand2 size={14} className="text-brand-purple" />
                 Edit Profile
               </h3>
               <button

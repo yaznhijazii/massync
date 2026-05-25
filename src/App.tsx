@@ -9,16 +9,43 @@ import Login from './pages/Login'
 import SignUp from './pages/SignUp'
 import Settings from './pages/Settings'
 import RelationshipTree from './pages/RelationshipTree'
+import Gifts from './pages/Gifts'
 import { BottomNav } from './components/BottomNav'
+import { ToastContainer } from './components/Toast'
 import { useAppStore } from './store/useAppStore'
 
 function App() {
-  const { user, authInitialized, initAuth } = useAppStore()
+  const { user, authInitialized, initAuth, updateLastSeen, pairStatus } = useAppStore()
 
   useEffect(() => {
     const unsubscribe = initAuth()
     return () => unsubscribe()
   }, [initAuth])
+
+  // Active heartbeat tracker for last_seen_at updates
+  useEffect(() => {
+    if (!user || pairStatus !== 'active') return
+
+    // Immediately trigger on mount/load
+    updateLastSeen()
+
+    const interval = setInterval(() => {
+      updateLastSeen()
+    }, 60000) // update every 60 seconds
+
+    // Trigger on visibility change (when user returns to the tab)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        updateLastSeen()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [user, pairStatus, updateLastSeen])
 
   if (!authInitialized) {
     return (
@@ -69,6 +96,7 @@ function App() {
                 <Route path="/hobbies" element={<Hobbies />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/tree" element={<RelationshipTree />} />
+                <Route path="/gifts" element={<Gifts />} />
                 {/* Fallbacks */}
                 <Route path="/login" element={<Navigate to="/" replace />} />
                 <Route path="/signup" element={<Navigate to="/" replace />} />
@@ -85,6 +113,7 @@ function App() {
           </Routes>
         </div>
         {user && <BottomNav />}
+        {user && <ToastContainer />}
       </div>
     </BrowserRouter>
   )

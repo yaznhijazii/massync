@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
-import { Play, Square, Plus, Search, Radio, Music, Film, Check, Trash2, Smile, Sparkles, BookOpen, Sprout, Disc, Target } from 'lucide-react'
+import { Play, Square, Plus, Search, Radio, Music, Film, Check, Trash2, Smile, BookOpen, Sprout, Disc, Target } from 'lucide-react'
 
 export default function Hobbies() {
   const {
@@ -15,8 +15,15 @@ export default function Hobbies() {
     toggleWatchItem,
     deleteWatchItem,
     giftSong,
-    completeDailyChallenge
+    completeDailyChallenge,
+    fetchHobbies,
+    fetchSongs
   } = useAppStore()
+
+  useEffect(() => {
+    fetchHobbies().catch(() => {})
+    fetchSongs()
+  }, [fetchHobbies, fetchSongs])
 
   const [activeTab, setActiveTab] = useState<'hobbies' | 'music' | 'entertainment'>('hobbies')
 
@@ -169,16 +176,17 @@ export default function Hobbies() {
       {/* Header */}
       <header className="flex justify-between items-center mb-6">
         <div>
-          <span className="text-[10px] font-black uppercase tracking-wider text-rose-650 bg-rose-50 border border-rose-100 px-3.5 py-1.5 rounded-full select-none flex items-center gap-1.5">
+          <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 bg-rose-500/10 border border-rose-500/20 px-3.5 py-1.5 rounded-full select-none inline-flex items-center gap-1.5">
             <span>Grow & Play Hub</span>
-            <Target size={11} className="text-rose-500 animate-pulse" />
+            <Target size={11} className="text-rose-500" />
           </span>
           <h1 className="text-4xl font-extrabold text-brand-dark mt-3.5 tracking-tight">
             Hobbies & Fun
           </h1>
         </div>
-        <div className="w-12 h-12 rounded-2xl bg-rose-500/10 flex items-center justify-center shadow-inner">
-          <Smile className="text-rose-600 fill-rose-650/10 animate-bounce" size={22} />
+        <div className="w-12 h-12 rounded-2xl bg-rose-500/5 border border-rose-500/20 shadow-sm flex items-center justify-center relative overflow-hidden shrink-0">
+          <div className="absolute inset-0 bg-gradient-to-tr from-rose-500/10 to-pink-500/5 opacity-50" />
+          <Smile className="text-rose-500 fill-rose-500/10 relative z-10" size={20} strokeWidth={2.5} />
         </div>
       </header>
 
@@ -434,7 +442,7 @@ export default function Hobbies() {
           {/* Daily Challenge card */}
           <section className="card-soft bg-gradient-to-r from-teal-500 to-emerald-600 text-white relative overflow-hidden shadow-soft">
             <div className="absolute right-[-10px] bottom-[-20px] opacity-10">
-              <Sparkles size={110} />
+              <Target size={110} />
             </div>
             <span className="text-[9px] font-black uppercase bg-white/20 text-white px-2 py-0.5 rounded border border-white/5 select-none">Daily mini-challenge</span>
             <h3 className="font-extrabold text-base text-white mt-2.5">Take a photo of what you're eating right now!</h3>
@@ -572,7 +580,7 @@ export default function Hobbies() {
 
       {/* Floating Modal: Add Shared Hobby */}
       {isAddingHobby && (
-        <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-end justify-center px-4 pb-8 max-h-[100vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 max-h-[100vh] overflow-y-auto">
           <div className="bg-white rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-slide-up border border-slate-100 max-h-[85vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-5">
               <h3 className="font-extrabold text-xl text-brand-dark">Start a New Shared Hobby</h3>
@@ -658,7 +666,7 @@ export default function Hobbies() {
 
       {/* Floating Modal: Add Watchlist / Bucket list item */}
       {isAddingWatch && (
-        <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-end justify-center px-4 pb-8">
+        <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-slide-up border border-slate-100">
             <div className="flex justify-between items-center mb-5">
               <h3 className="font-extrabold text-xl text-brand-dark">Add to Shared Fun</h3>
@@ -723,7 +731,7 @@ export default function Hobbies() {
 
       {/* Floating Modal: Gift a Song */}
       {isGiftingSong && (
-        <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-end justify-center px-4 pb-8">
+        <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-slide-up border border-slate-100">
             <div className="flex justify-between items-center mb-5">
               <h3 className="font-extrabold text-xl text-brand-dark">Gift a Song today</h3>
