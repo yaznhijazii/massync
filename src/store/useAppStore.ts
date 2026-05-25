@@ -222,23 +222,7 @@ const getInitialTreeNodes = (target: 'me' | 'partner'): TreeNode[] => {
     console.warn('[MasSync] Error reading tree nodes from localStorage:', e)
   }
 
-  if (target === 'me') {
-    return [
-      { id: 'tme-1', name: 'Rania', relationship: 'Mother', category: 'family' },
-      { id: 'tme-2', name: 'Ahmad', relationship: 'Father', category: 'family' },
-      { id: 'tme-3', name: 'Faisal', relationship: 'Brother', category: 'family' },
-      { id: 'tme-4', name: 'Omar', relationship: 'Best Friend', category: 'friends' },
-      { id: 'tme-5', name: 'Tareq', relationship: 'Close Friend', category: 'friends' }
-    ]
-  } else {
-    return [
-      { id: 'tpart-1', name: 'Laila', relationship: 'Mother', category: 'family' },
-      { id: 'tpart-2', name: 'Khaled', relationship: 'Father', category: 'family' },
-      { id: 'tpart-3', name: 'Noor', relationship: 'Sister', category: 'family' },
-      { id: 'tpart-4', name: 'Sarah', relationship: 'Best Friend', category: 'friends' },
-      { id: 'tpart-5', name: 'Jana', relationship: 'Close Friend', category: 'friends' }
-    ]
-  }
+  return []
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
