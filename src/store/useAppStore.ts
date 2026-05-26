@@ -248,11 +248,19 @@ interface AppState {
   addWatchItem: (item: Omit<WatchItem, 'id' | 'added_by'>) => void
   toggleWatchItem: (id: string) => void
   deleteWatchItem: (id: string) => void
+  fetchWatchlist: () => Promise<void>
   completeDailyChallenge: () => void
 
   // Inner Circle Tree Actions
   addTreeNode: (target: 'me' | 'partner', node: Omit<TreeNode, 'id'>) => void
   deleteTreeNode: (target: 'me' | 'partner', id: string) => void
+  fetchTreeNodes: () => Promise<void>
+}
+
+// Daily challenge: persist per-day in localStorage
+const getTodayKey = () => `daily_challenge_${new Date().toISOString().split('T')[0]}`
+const getInitialDailyChallenge = (): boolean => {
+  try { return localStorage.getItem(getTodayKey()) === '1' } catch { return false }
 }
 
 const getInitialTreeNodes = (target: 'me' | 'partner'): TreeNode[] => {
@@ -266,6 +274,65 @@ const getInitialTreeNodes = (target: 'me' | 'partner'): TreeNode[] => {
   }
 
   return []
+}
+
+// Migration helper: upload existing localStorage nodes to Supabase once
+const migrateLocalTreeNodesToDB = async (
+  userId: string,
+  partnerId: string | null,
+  pairId: string,
+  token: string,
+  supabaseUrl: string,
+  supabaseAnonKey: string
+) => {
+  const targets: Array<{ target: 'me' | 'partner'; ownerId: string }> = [
+    { target: 'me', ownerId: userId },
+    ...(partnerId ? [{ target: 'partner' as const, ownerId: partnerId }] : [])
+  ]
+
+  for (const { target, ownerId } of targets) {
+    const key = `tree_nodes_${target}`
+    const migrated_key = `tree_nodes_migrated_${target}_${pairId}`
+    // Skip if already migrated
+    if (localStorage.getItem(migrated_key)) continue
+
+    const saved = localStorage.getItem(key)
+    if (!saved) { localStorage.setItem(migrated_key, '1'); continue }
+
+    let nodes: TreeNode[] = []
+    try { nodes = JSON.parse(saved) } catch { continue }
+    if (!nodes.length) { localStorage.setItem(migrated_key, '1'); continue }
+
+    // Only migrate nodes for yourself (not the partner's — they migrate from their own device)
+    if (target !== 'me') { localStorage.setItem(migrated_key, '1'); continue }
+
+    const body = nodes.map(n => ({
+      pair_id: pairId,
+      owner_id: ownerId,
+      name: n.name,
+      relationship: n.relationship,
+      category: n.category,
+      note: n.note || null,
+      avatar: n.avatar || null,
+    }))
+
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/tree_nodes`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal,resolution=ignore-duplicates'
+        },
+        body: JSON.stringify(body)
+      })
+      localStorage.setItem(migrated_key, '1')
+      console.log(`[MasSync] Migrated ${nodes.length} tree nodes for ${target} to Supabase`)
+    } catch (e) {
+      console.warn('[MasSync] Tree node migration failed:', e)
+    }
+  }
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -322,7 +389,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   partnerQuranPage: 1,
   quranTarget: 'Finish Al-Baqarah by Sunday',
 
-  dailyChallengeDone: false,
+  dailyChallengeDone: getInitialDailyChallenge(),
   toasts: [],
 
   myTreeNodes: getInitialTreeNodes('me'),
@@ -1294,31 +1361,161 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // Watchlist actions
-  addWatchItem: (item) => set((state) => {
+  addWatchItem: async (item) => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    const tempId = `watch-temp-${Date.now()}`
     const newItem: WatchItem = {
       ...item,
-      id: `watch-${Date.now()}`,
+      id: tempId,
       added_by: 'you',
     }
-    return { watchlist: [newItem, ...state.watchlist] }
-  }),
+    set((state) => ({ watchlist: [newItem, ...state.watchlist] }))
 
-  toggleWatchItem: (id) => set((state) => ({
-    watchlist: state.watchlist.map((w) =>
-      w.id === id
-        ? {
-            ...w,
-            status: w.status === 'Want to Watch' ? 'Watching' : w.status === 'Watching' ? 'Done' : w.status === 'Pending' ? 'Completed' : 'Pending',
-          }
-        : w
-    ),
-  })),
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
 
-  deleteWatchItem: (id) => set((state) => ({
-    watchlist: state.watchlist.filter((w) => w.id !== id),
-  })),
+      const res = await fetch(`${supabaseUrl}/rest/v1/watchlist`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          pair_id: pairId,
+          added_by: userId,
+          type: item.type,
+          title: item.title,
+          category: item.category,
+          status: item.status,
+          rating: item.rating || null,
+          priority: item.priority || null,
+        })
+      })
 
-  completeDailyChallenge: () => set({ dailyChallengeDone: true }),
+      if (res.ok) {
+        const inserted = await res.json()
+        const dbItem = inserted[0]
+        if (dbItem) {
+          set((state) => ({
+            watchlist: state.watchlist.map((w) =>
+              w.id === tempId ? { ...w, id: dbItem.id } : w
+            )
+          }))
+        }
+      } else {
+        const errText = await res.text()
+        console.error('[MasSync] Error adding watch item to DB:', errText)
+        set((state) => ({ watchlist: state.watchlist.filter((w) => w.id !== tempId) }))
+        get().showToast('Failed to add item', 'error')
+      }
+    } catch (e) {
+      console.error('[MasSync] Error adding watch item:', e)
+    }
+  },
+
+  toggleWatchItem: async (id) => {
+    let newStatus: WatchItem['status'] = 'Pending'
+    set((state) => ({
+      watchlist: state.watchlist.map((w) => {
+        if (w.id === id) {
+          newStatus = w.status === 'Want to Watch' ? 'Watching'
+            : w.status === 'Watching' ? 'Done'
+            : w.status === 'Pending' ? 'Completed'
+            : w.type === 'watch' ? 'Want to Watch' : 'Pending'
+          return { ...w, status: newStatus }
+        }
+        return w
+      })
+    }))
+
+    if (id.startsWith('watch-temp-')) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      await fetch(`${supabaseUrl}/rest/v1/watchlist?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus })
+      })
+    } catch (e) {
+      console.error('[MasSync] Error toggling watch item:', e)
+    }
+  },
+
+  deleteWatchItem: async (id) => {
+    set((state) => ({ watchlist: state.watchlist.filter((w) => w.id !== id) }))
+    get().showToast('Item removed', 'info')
+
+    if (id.startsWith('watch-temp-')) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      await fetch(`${supabaseUrl}/rest/v1/watchlist?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+        }
+      })
+    } catch (e) {
+      console.error('[MasSync] Error deleting watch item:', e)
+    }
+  },
+
+  fetchWatchlist: async () => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/watchlist?pair_id=eq.${pairId}&order=created_at.desc`, {
+        headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const mapped: WatchItem[] = data.map((w: any) => ({
+          id: w.id,
+          type: w.type,
+          title: w.title,
+          category: w.category,
+          status: w.status,
+          added_by: w.added_by === userId ? 'you' : 'partner',
+          rating: w.rating || undefined,
+          priority: w.priority || undefined,
+        }))
+        set({ watchlist: mapped })
+      }
+    } catch (e) {
+      console.error('[MasSync] Error fetching watchlist:', e)
+    }
+  },
+
+  completeDailyChallenge: () => {
+    try { localStorage.setItem(getTodayKey(), '1') } catch {}
+    set({ dailyChallengeDone: true })
+  },
 
   updateQuranPage: async (page: number) => {
     const user = get().user
@@ -1384,35 +1581,146 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  addTreeNode: (target, node) => set((state) => {
-    const key = `tree_nodes_${target}`
-    const id = `tnode-${Date.now()}`
-    const newNode = { ...node, id }
-    const currentNodes = target === 'me' ? state.myTreeNodes : state.partnerTreeNodes
-    const newNodes = [...currentNodes, newNode]
-    try {
-      localStorage.setItem(key, JSON.stringify(newNodes))
-    } catch (e) {
-      console.warn('Error saving tree nodes:', e)
-    }
-    return target === 'me' 
-      ? { myTreeNodes: newNodes }
-      : { partnerTreeNodes: newNodes }
-  }),
+  addTreeNode: async (target, node) => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    const partnerId = get().partnerId
+    if (!pairId || !userId) return
 
-  deleteTreeNode: (target, id) => set((state) => {
-    const key = `tree_nodes_${target}`
-    const currentNodes = target === 'me' ? state.myTreeNodes : state.partnerTreeNodes
-    const newNodes = currentNodes.filter((n) => n.id !== id)
+    // owner_id: if adding to my tree, use my userId; if adding to partner's tree, use partnerId
+    const ownerId = target === 'me' ? userId : (partnerId || userId)
+
+    const tempId = `tnode-temp-${Date.now()}`
+    const newNode: TreeNode = { ...node, id: tempId }
+    set((state) => ({
+      myTreeNodes: target === 'me' ? [...state.myTreeNodes, newNode] : state.myTreeNodes,
+      partnerTreeNodes: target === 'partner' ? [...state.partnerTreeNodes, newNode] : state.partnerTreeNodes,
+    }))
+
     try {
-      localStorage.setItem(key, JSON.stringify(newNodes))
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/tree_nodes`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          pair_id: pairId,
+          owner_id: ownerId,
+          name: node.name,
+          relationship: node.relationship,
+          category: node.category,
+          note: node.note || null,
+          avatar: node.avatar || null,
+        })
+      })
+
+      if (res.ok) {
+        const inserted = await res.json()
+        const dbNode = inserted[0]
+        if (dbNode) {
+          set((state) => ({
+            myTreeNodes: target === 'me'
+              ? state.myTreeNodes.map((n) => n.id === tempId ? { ...n, id: dbNode.id } : n)
+              : state.myTreeNodes,
+            partnerTreeNodes: target === 'partner'
+              ? state.partnerTreeNodes.map((n) => n.id === tempId ? { ...n, id: dbNode.id } : n)
+              : state.partnerTreeNodes,
+          }))
+        }
+        get().showToast('Connection added ✓', 'success')
+      } else {
+        const errText = await res.text()
+        console.error('[MasSync] Error adding tree node to DB:', errText)
+        // Fallback: revert optimistic update
+        set((state) => ({
+          myTreeNodes: target === 'me' ? state.myTreeNodes.filter(n => n.id !== tempId) : state.myTreeNodes,
+          partnerTreeNodes: target === 'partner' ? state.partnerTreeNodes.filter(n => n.id !== tempId) : state.partnerTreeNodes,
+        }))
+        get().showToast('Failed to save connection', 'error')
+      }
     } catch (e) {
-      console.warn('Error saving tree nodes:', e)
+      console.error('[MasSync] Error adding tree node:', e)
+      get().showToast('Failed to save connection', 'error')
     }
-    return target === 'me'
-      ? { myTreeNodes: newNodes }
-      : { partnerTreeNodes: newNodes }
-  }),
+  },
+
+  deleteTreeNode: async (target, id) => {
+    // Optimistic: remove from state
+    set((state) => ({
+      myTreeNodes: target === 'me' ? state.myTreeNodes.filter(n => n.id !== id) : state.myTreeNodes,
+      partnerTreeNodes: target === 'partner' ? state.partnerTreeNodes.filter(n => n.id !== id) : state.partnerTreeNodes,
+    }))
+
+    // Skip DB delete for temp IDs that never made it to DB
+    if (id.startsWith('tnode-temp-')) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      await fetch(`${supabaseUrl}/rest/v1/tree_nodes?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+        }
+      })
+      get().showToast('Connection removed', 'info')
+    } catch (e) {
+      console.error('[MasSync] Error deleting tree node:', e)
+    }
+  },
+
+  fetchTreeNodes: async () => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    const partnerId = get().partnerId
+    if (!pairId || !userId) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/tree_nodes?pair_id=eq.${pairId}&order=created_at.asc`, {
+        headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const myNodes: TreeNode[] = []
+        const partnerNodes: TreeNode[] = []
+
+        data.forEach((row: any) => {
+          const node: TreeNode = {
+            id: row.id,
+            name: row.name,
+            relationship: row.relationship,
+            category: row.category,
+            note: row.note || undefined,
+            avatar: row.avatar || undefined,
+          }
+          if (row.owner_id === userId) {
+            myNodes.push(node)
+          } else if (row.owner_id === partnerId) {
+            partnerNodes.push(node)
+          }
+        })
+
+        set({ myTreeNodes: myNodes, partnerTreeNodes: partnerNodes })
+      }
+    } catch (e) {
+      console.error('[MasSync] Error fetching tree nodes:', e)
+    }
+  },
 
   // Auth & Pairing Actions Implementation
   initAuth: () => {
@@ -1635,9 +1943,14 @@ export const useAppStore = create<AppState>((set, get) => ({
               get().fetchPrayers()
               get().fetchAthkarLogs()
               get().fetchHobbies().catch(() => {})
+              get().fetchTreeNodes()
+              get().fetchWatchlist()
               get().subscribeToPresence()
               get().subscribeToDatabaseChanges()
               get().updateLastSeen()
+
+              // Migrate existing localStorage tree nodes to Supabase (one-time)
+              migrateLocalTreeNodesToDB(userId, partnerId, profile.pair_id, token!, supabaseUrl, supabaseAnonKey)
               return
             }
           }
@@ -1872,6 +2185,16 @@ export const useAppStore = create<AppState>((set, get) => ({
         'postgres_changes',
         { event: '*', schema: 'public', table: 'hobbies', filter: `pair_id=eq.${pairId}` },
         () => { get().fetchHobbies().catch(() => {}) }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tree_nodes', filter: `pair_id=eq.${pairId}` },
+        () => { get().fetchTreeNodes() }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'watchlist', filter: `pair_id=eq.${pairId}` },
+        () => { get().fetchWatchlist() }
       )
       .on(
         'postgres_changes',
