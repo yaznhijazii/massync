@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
-import { Play, Square, Plus, Search, Radio, Music, Film, Check, Trash2, Smile, BookOpen, Sprout, Disc, Target } from 'lucide-react'
+import { Play, Pause, Square, Plus, Search, Radio, Music, Film, Check, Trash2, Smile, BookOpen, Sprout, Target, Star } from 'lucide-react'
 
 export default function Hobbies() {
   const {
@@ -15,6 +15,7 @@ export default function Hobbies() {
     toggleWatchItem,
     deleteWatchItem,
     giftSong,
+    updateSongRating,
     completeDailyChallenge,
     fetchHobbies,
     fetchSongs
@@ -59,6 +60,47 @@ export default function Hobbies() {
   // Audio object helper
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null)
 
+  // Song player state
+  const [isPlayingSong, setIsPlayingSong] = useState(false)
+  const [songProgress, setSongProgress] = useState(0)
+
+  useEffect(() => {
+    let timer: any = null
+    if (isPlayingSong) {
+      timer = setInterval(() => {
+        setSongProgress((prev) => {
+          if (prev >= 192) {
+            setIsPlayingSong(false)
+            return 0
+          }
+          return prev + 1
+        })
+      }, 1000)
+    } else {
+      clearInterval(timer)
+    }
+    return () => clearInterval(timer)
+  }, [isPlayingSong])
+
+  const toggleSongPlay = () => {
+    if (!isPlayingSong) {
+      // Stop radio if playing
+      if (audioElement) {
+        audioElement.pause()
+      }
+      setActiveStationUrl(null)
+      setActiveStationName(null)
+      setAudioElement(null)
+    }
+    setIsPlayingSong(!isPlayingSong)
+  };
+
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60)
+    const s = secs % 60
+    return `${m}:${String(s).padStart(2, '0')}`
+  };
+
   // Search radio stations
   const handleRadioSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -80,6 +122,7 @@ export default function Hobbies() {
     if (audioElement) {
       audioElement.pause()
     }
+    setIsPlayingSong(false)
 
     if (activeStationUrl === url) {
       // Toggle off
@@ -278,27 +321,133 @@ export default function Hobbies() {
           <section className="card-soft bg-gradient-to-tr from-brand-purple/15 via-pink-500/5 to-sky-500/5 border border-brand-purple/20 p-5 relative overflow-hidden shadow-soft">
             <div className="flex justify-between items-start">
               <div className="space-y-2 flex-1">
-                <span className="text-[9px] font-black uppercase bg-brand-purple/20 text-brand-purple px-2 py-0.5 rounded-md select-none border border-brand-purple/10">Song of the Day</span>
+                <span className="text-[9px] font-black uppercase bg-brand-purple/20 text-brand-purple px-2.5 py-1 rounded-lg select-none border border-brand-purple/15">Song of the Day</span>
                 {songs[0] ? (
                   <div className="mt-3.5 flex items-center space-x-4">
-                    {/* Spin Vinyl CD Record Visual */}
-                    <div className="relative w-20 h-20 rounded-full bg-slate-950 border border-slate-800 shadow-lg flex items-center justify-center shrink-0 overflow-hidden animate-spin-slow">
-                      <div className="absolute inset-2 border-[4px] border-slate-900 border-dashed rounded-full" />
-                      <div className="w-7 h-7 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center">
-                        <Disc className="text-white opacity-40" size={12} />
+                    {/* Turntable Platter Deck base */}
+                    <div className="relative w-28 h-28 bg-slate-900/10 rounded-2xl border border-slate-200/40 p-2 flex items-center justify-center shadow-inner shrink-0 bg-gradient-to-br from-slate-100/50 to-slate-200/30 select-none overflow-hidden">
+                      {/* Left-shifted Platter shadow */}
+                      <div className="absolute w-20 h-20 rounded-full bg-slate-950/20 shadow-md left-2 top-[16px]"></div>
+                      
+                      {/* Left-shifted Vinyl Disc */}
+                      <div 
+                        className={`absolute w-20 h-20 rounded-full bg-slate-950 border-4 border-slate-900 shadow-2xl flex items-center justify-center cursor-pointer overflow-hidden left-2 top-[16px] transition-all duration-300 ${isPlayingSong ? 'animate-spin-slow' : ''}`}
+                        style={{ animationPlayState: isPlayingSong ? 'running' : 'paused' }}
+                        onClick={toggleSongPlay}
+                      >
+                        {/* Groove rings */}
+                        <div className="absolute inset-1 border border-slate-900/60 rounded-full"></div>
+                        <div className="absolute inset-2 border border-slate-800/40 rounded-full"></div>
+                        <div className="absolute inset-3.5 border border-slate-900/50 rounded-full"></div>
+                        <div className="absolute inset-5 border border-slate-800/30 rounded-full"></div>
+                        <div className="absolute inset-6.5 border border-slate-900/40 rounded-full"></div>
+                        
+                        {/* Asymmetrical grooved lines for visible rotation */}
+                        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(0,0,0,0.15)_45%,transparent_50%)]"></div>
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.02)_0%,rgba(0,0,0,0.4)_100%)]"></div>
+                        
+                        {/* Asymmetrical details: outer label marker dots to show rotation */}
+                        <div className="absolute right-3 w-1 h-1 rounded-full bg-white/40 shadow-sm"></div>
+                        <div className="absolute left-4 bottom-4 w-0.5 h-0.5 rounded-full bg-white/30"></div>
+                        
+                        {/* Center Sticker Label */}
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-brand-purple via-purple-500 to-pink-500 border border-slate-950 flex items-center justify-center relative z-10 shadow-md">
+                          <div className="absolute text-[3.5px] font-black text-white/60 select-none uppercase tracking-widest rotate-12">MasSync</div>
+                          {/* Spindle hole */}
+                          <div className="w-2 h-2 rounded-full bg-slate-950 border border-white/20 flex items-center justify-center">
+                            <div className="w-0.5 h-0.5 rounded-full bg-slate-400"></div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Static Glass Gloss Flare (On top of record, stays static!) */}
+                      <div className="absolute w-20 h-20 rounded-full pointer-events-none z-20 mix-blend-screen bg-gradient-to-tr from-transparent via-white/5 to-white/10 opacity-70 rotate-45 left-2 top-[16px]"></div>
+                      <div className="absolute w-20 h-20 rounded-full pointer-events-none z-20 mix-blend-screen bg-[conic-gradient(from_0deg,transparent_0deg,rgba(255,255,255,0.06)_40deg,transparent_80deg,transparent_180deg,rgba(255,255,255,0.06)_220deg,transparent_260deg,transparent_360deg)] left-2 top-[16px]"></div>
+                      
+                      {/* Tonearm Resting Stand Holder Fork (shifted right, clear of the vinyl!) */}
+                      <div className="absolute bottom-[22px] right-[21px] w-2 h-3.5 flex flex-col items-center justify-end pointer-events-none z-22">
+                        {/* Fork clip */}
+                        <div className="w-2.5 h-1.5 border-l-2 border-r-2 border-slate-400/80 rounded-b-full"></div>
+                        {/* Stand pole */}
+                        <div className="w-0.5 h-2 bg-gradient-to-b from-slate-400 to-slate-500 shadow-sm"></div>
+                      </div>
+
+                      {/* Tonearm Base gimbal (shifted right!) */}
+                      <div className="absolute top-[16px] right-1.5 w-7 h-7 flex items-center justify-center z-25 pointer-events-none">
+                        {/* Pivot Base */}
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-slate-200 to-slate-400 border border-slate-300/85 shadow-md flex items-center justify-center relative">
+                          {/* Inner metallic gimbal ring */}
+                          <div className="w-4 h-4 rounded-full bg-slate-800 border border-slate-600 flex items-center justify-center shadow-inner">
+                            <div className="w-1.5 h-1.5 rounded-full bg-slate-400 shadow-inner"></div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Tonearm Stem (Direct child of deck to prevent flexbox glitches!) */}
+                      <div 
+                        className="absolute w-1 h-14 bg-gradient-to-b from-slate-300 via-slate-400 to-slate-200 rounded-full origin-top transition-transform duration-700 ease-out shadow-md z-24 pointer-events-none"
+                        style={{ 
+                          top: '28px', // Center y of gimbal base: 16px (top offset) + 12px (half of 24px gimbal)
+                          right: '20px', // Center x of gimbal base: 6px (right-1.5 offset) + 2px (centering offset) + 12px (half of 24px gimbal)
+                          transform: isPlayingSong ? 'rotate(-26deg)' : 'rotate(0deg)' 
+                        }}
+                      >
+                        {/* Counterweight (Top of the arm) */}
+                        <div className="absolute top-[-8px] left-[-2px] w-2 h-2.5 bg-slate-700 border border-slate-600 rounded-sm shadow-sm"></div>
+
+                        {/* Cartridge & Stylus (needle) - at the bottom end of the vertical arm */}
+                        <div className="absolute bottom-[-11px] left-[-3px] w-3 h-[13px] bg-gradient-to-b from-slate-600 via-slate-800 to-slate-900 rounded-sm border border-slate-500 shadow-sm flex flex-col items-center justify-end rotate-[12deg] origin-top">
+                          {/* Needle light indicator */}
+                          <div className="w-1 h-1 bg-amber-500 rounded-full mb-0.5 animate-pulse"></div>
+                        </div>
                       </div>
                     </div>
                     
                     <div className="flex-1 space-y-1">
-                      <h3 className="font-black text-base text-brand-dark leading-tight">{songs[0].title}</h3>
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-black text-base text-brand-dark leading-tight">{songs[0].title}</h3>
+                        {/* Equalizer Visualizer */}
+                        <div className="flex items-end space-x-0.5 h-3 select-none pr-1">
+                          <span className={`w-0.5 bg-brand-purple rounded-full transition-all duration-300 ${isPlayingSong ? 'eq-bar-1 h-3' : 'h-1'}`}></span>
+                          <span className={`w-0.5 bg-brand-purple rounded-full transition-all duration-300 ${isPlayingSong ? 'eq-bar-2 h-3.5' : 'h-2'}`}></span>
+                          <span className={`w-0.5 bg-brand-purple rounded-full transition-all duration-300 ${isPlayingSong ? 'eq-bar-3 h-2.5' : 'h-1.5'}`}></span>
+                        </div>
+                      </div>
                       <p className="text-xs text-slate-400 font-bold">{songs[0].artist}</p>
+                      
+                      {/* Star Rating Widget */}
+                      <div className="flex flex-col space-y-1 pt-1 select-none">
+                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Your Rating</span>
+                        <div className="flex items-center space-x-1">
+                          {[1, 2, 3, 4, 5].map((starVal) => {
+                            const isLit = (songs[0].rating || 0) >= starVal
+                            return (
+                              <button
+                                key={starVal}
+                                type="button"
+                                onClick={() => updateSongRating(songs[0].id, starVal)}
+                                className="focus:outline-none transition-all active-pop hover:scale-115"
+                              >
+                                <Star
+                                  size={16}
+                                  className={`transition-colors ${
+                                    isLit 
+                                      ? 'text-amber-500 fill-amber-500 drop-shadow-[0_0_4px_rgba(245,158,11,0.35)]' 
+                                      : 'text-slate-200 fill-transparent hover:text-amber-450'
+                                  }`}
+                                />
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ) : (
                   <p className="text-xs text-slate-400 mt-2 font-bold leading-relaxed">No song gifted yet today. Select a special song for {partnerName}!</p>
                 )}
               </div>
-              <Music className="text-brand-purple" size={26} />
+              <Music className="text-brand-purple" size={24} />
             </div>
 
             {songs[0] && (
@@ -309,12 +458,25 @@ export default function Hobbies() {
 
             {/* Custom music player slider bar */}
             {songs[0] && (
-              <div className="mt-4 flex items-center space-x-3 select-none">
-                <span className="text-[9px] font-black text-slate-400 font-mono">0:45</span>
-                <div className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-brand-purple rounded-full" style={{ width: '33%' }}></div>
+              <div className="mt-4 flex items-center space-x-3 select-none bg-slate-50/50 p-2.5 rounded-2xl border border-slate-100/40">
+                <button
+                  type="button"
+                  onClick={toggleSongPlay}
+                  className="w-7 h-7 rounded-full bg-brand-purple text-white flex items-center justify-center shadow-md active-pop focus:outline-none transition-transform hover:scale-105"
+                >
+                  {isPlayingSong ? <Pause size={10} fill="white" /> : <Play size={10} className="ml-0.5" fill="white" />}
+                </button>
+                <span className="text-[9px] font-black text-slate-400 font-mono w-7 text-right">
+                  {formatTime(songProgress)}
+                </span>
+                <div className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden relative cursor-pointer" onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  const pct = (e.clientX - rect.left) / rect.width
+                  setSongProgress(Math.floor(pct * 192))
+                }}>
+                  <div className="h-full bg-brand-purple rounded-full" style={{ width: `${(songProgress / 192) * 100}%` }}></div>
                 </div>
-                <span className="text-[9px] font-black text-slate-400 font-mono">3:12</span>
+                <span className="text-[9px] font-black text-slate-400 font-mono w-7">3:12</span>
               </div>
             )}
 
@@ -414,19 +576,52 @@ export default function Hobbies() {
                 <p className="text-center py-4 text-xs text-slate-400 font-semibold select-none">No past songs gifted.</p>
               ) : (
                 songs.map((song) => (
-                  <div key={song.id} className="flex items-start space-x-3.5">
-                    <div className="w-10 h-10 rounded-xl bg-slate-50/70 border border-slate-100 flex items-center justify-center shadow-sm shrink-0">
-                      <Music size={16} className="text-slate-400" />
+                  <div key={song.id} className="flex items-start space-x-3.5 p-3 rounded-2xl bg-slate-50/50 hover:bg-slate-50 border border-slate-100/50 transition-all duration-200 group">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-slate-100 to-slate-50 border border-slate-200/50 flex items-center justify-center shadow-inner shrink-0 transition-transform group-hover:scale-105 duration-300">
+                      <Music size={16} className="text-brand-purple" />
                     </div>
-                    <div className="flex-1 space-y-1">
-                      <h4 className="font-extrabold text-xs text-brand-dark leading-tight">{song.title}</h4>
-                      <p className="text-[10px] text-slate-400 font-bold">{song.artist}</p>
-                      <p className="text-[11px] text-slate-500 bg-slate-50/50 p-2.5 rounded-xl border border-slate-100/50 font-bold italic">
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex justify-between items-start gap-2">
+                        <h4 className="font-extrabold text-xs text-brand-dark leading-tight truncate">{song.title}</h4>
+                        {/* Rating indicator badge */}
+                        {song.rating && (
+                          <div className="flex items-center space-x-0.5 shrink-0 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-md">
+                            <span className="text-[8px] font-black text-amber-600 font-mono leading-none">{song.rating}</span>
+                            <Star size={7} className="text-amber-600 fill-amber-600" />
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-bold truncate">{song.artist}</p>
+                      <p className="text-xs text-slate-600 bg-white/60 p-3 rounded-2xl border border-slate-100/30 font-medium leading-relaxed shadow-sm">
                         "{song.message}"
                       </p>
-                      <span className="text-[9px] font-black text-slate-400 mt-1 block">
-                        Gifted by {song.gifted_by === 'you' ? 'you' : partnerName} • {song.gifted_at}
-                      </span>
+                      
+                      <div className="flex justify-between items-center mt-2.5 select-none pt-1">
+                        <span className="text-[9px] text-slate-400 font-bold">
+                          Gifted by {song.gifted_by === 'you' ? 'you' : partnerName} • {song.gifted_at}
+                        </span>
+                        
+                        {/* Rating stars trigger */}
+                        <div className="flex items-center space-x-0.5">
+                          {[1, 2, 3, 4, 5].map((starVal) => {
+                            const isLit = (song.rating || 0) >= starVal
+                            return (
+                              <button
+                                key={starVal}
+                                type="button"
+                                onClick={() => updateSongRating(song.id, starVal)}
+                                className="focus:outline-none transition-all hover:scale-120 p-0.5"
+                                title={`Rate ${starVal} stars`}
+                              >
+                                <Star
+                                  size={12}
+                                  className={isLit ? 'text-amber-500 fill-amber-500' : 'text-slate-200 fill-transparent'}
+                                />
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))

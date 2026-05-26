@@ -60,6 +60,13 @@ export interface Task {
   date: string
 }
 
+export interface TaskCompletion {
+  id: string
+  task_id: string
+  completed_by: 'you' | 'partner'
+  week_key: string
+}
+
 export interface Memory {
   id: string
   pair_id: string
@@ -86,6 +93,7 @@ export interface Song {
   artist: string
   message: string
   gifted_at: string
+  rating?: number
 }
 
 export interface PrayerLog {
@@ -160,6 +168,7 @@ interface AppState {
   
   // App Data
   tasks: Task[]
+  taskCompletions: TaskCompletion[]  // recurring task weekly completions
   memories: Memory[]
   songs: Song[]
   myPrayers: PrayerLog
@@ -210,18 +219,24 @@ interface AppState {
   fetchPrayers: () => Promise<void>
   fetchAthkarLogs: () => Promise<void>
   fetchHobbies: () => Promise<void>
+  fetchTaskCompletions: () => Promise<void>
 
   // Task Actions
   addTask: (task: Omit<Task, 'id' | 'pair_id' | 'created_by' | 'is_done'>) => void
   toggleTask: (id: string) => void
   deleteTask: (id: string) => void
+  sendTaskReminder: (taskTitle: string) => Promise<void>
+  addTaskCompletion: (taskId: string) => Promise<void>
+  removeTaskCompletion: (completionId: string) => Promise<void>
   
   // Memory Actions
   addMemory: (memory: Omit<Memory, 'id' | 'pair_id' | 'created_by' | 'type'>) => void
   addOuting: (outing: Omit<Memory, 'id' | 'pair_id' | 'created_by' | 'type' | 'note'>) => void
+  deleteMemory: (id: string) => Promise<void>
   
   // Song Actions
   giftSong: (song: Omit<Song, 'id' | 'pair_id' | 'gifted_by' | 'gifted_at'>) => void
+  updateSongRating: (songId: string, rating: number) => Promise<void>
 
   // Gift Actions
   addGift: (title: string, note?: string, photo?: string, link?: string) => Promise<void>
@@ -358,6 +373,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   partnerLastSeen: null,
 
   tasks: [],
+  taskCompletions: [],
 
   memories: [],
 
@@ -786,6 +802,156 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  sendTaskReminder: async (taskTitle: string) => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const userName = get().userName || 'Your partner'
+      await fetch(`${supabaseUrl}/rest/v1/reminders`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          pair_id: pairId,
+          created_by: userId,
+          title: 'Task Reminder 🔔',
+          message: `${userName} wants you to complete the task: "${taskTitle}"! ✨`
+        })
+      })
+      get().showToast(`Sent reminder for "${taskTitle}"! 📲`, 'success')
+    } catch (e) {
+      console.error('[MasSync] Error sending task reminder:', e)
+      get().showToast('Failed to send reminder', 'error')
+    }
+  },
+
+  // ── Task Completions (recurring tasks weekly tracking) ───────────────────
+
+  fetchTaskCompletions: async () => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    // ISO week key: YYYY-Www
+    const now = new Date()
+    const jan1 = new Date(now.getFullYear(), 0, 1)
+    const week = Math.ceil(((now.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7)
+    const weekKey = `${now.getFullYear()}-W${week}`
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(
+        `${supabaseUrl}/rest/v1/task_completions?pair_id=eq.${pairId}&week_key=eq.${weekKey}&order=created_at.asc`,
+        { headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` } }
+      )
+      if (res.ok) {
+        const data = await res.json()
+        const completions: import('./useAppStore').TaskCompletion[] = data.map((r: any) => ({
+          id: r.id,
+          task_id: r.task_id,
+          completed_by: r.completed_by === userId ? 'you' : 'partner',
+          week_key: r.week_key,
+        }))
+        set({ taskCompletions: completions })
+      }
+    } catch (e) {
+      console.error('[MasSync] Error fetching task completions:', e)
+    }
+  },
+
+  addTaskCompletion: async (taskId) => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    const now = new Date()
+    const jan1 = new Date(now.getFullYear(), 0, 1)
+    const week = Math.ceil(((now.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7)
+    const weekKey = `${now.getFullYear()}-W${week}`
+
+    // Optimistic update
+    const tempId = `tc-temp-${Date.now()}`
+    set((state) => ({
+      taskCompletions: [
+        ...state.taskCompletions,
+        { id: tempId, task_id: taskId, completed_by: 'you', week_key: weekKey }
+      ]
+    }))
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/task_completions`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          task_id: taskId,
+          pair_id: pairId,
+          completed_by: userId,
+          week_key: weekKey
+        })
+      })
+      if (res.ok) {
+        const inserted = await res.json()
+        const dbRow = inserted[0]
+        if (dbRow) {
+          set((state) => ({
+            taskCompletions: state.taskCompletions.map((c) =>
+              c.id === tempId ? { ...c, id: dbRow.id } : c
+            )
+          }))
+        }
+      } else {
+        // revert optimistic
+        set((state) => ({ taskCompletions: state.taskCompletions.filter((c) => c.id !== tempId) }))
+      }
+    } catch (e) {
+      console.error('[MasSync] Error adding task completion:', e)
+      set((state) => ({ taskCompletions: state.taskCompletions.filter((c) => c.id !== tempId) }))
+    }
+  },
+
+  removeTaskCompletion: async (completionId) => {
+    // Optimistic remove
+    set((state) => ({
+      taskCompletions: state.taskCompletions.filter((c) => c.id !== completionId)
+    }))
+
+    if (completionId.startsWith('tc-temp-')) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      await fetch(`${supabaseUrl}/rest/v1/task_completions?id=eq.${completionId}`, {
+        method: 'DELETE',
+        headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
+      })
+    } catch (e) {
+      console.error('[MasSync] Error removing task completion:', e)
+    }
+  },
+
   // Memories actions
   addMemory: async (memory) => {
     const pairId = get().pairId
@@ -901,6 +1067,29 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  deleteMemory: async (id) => {
+    set((state) => ({
+      memories: state.memories.filter((m) => m.id !== id),
+    }))
+    get().showToast('Item deleted', 'info')
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      await fetch(`${supabaseUrl}/rest/v1/memories?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+        }
+      })
+    } catch (e) {
+      console.error('[MasSync] Error deleting memory from DB:', e)
+    }
+  },
+
   // Songs actions
   giftSong: async (song) => {
     const pairId = get().pairId
@@ -954,6 +1143,60 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (e) {
       console.error('[MasSync] Error gifting song:', e)
       get().showToast('Failed to gift song', 'error')
+    }
+  },
+
+  updateSongRating: async (songId: string, rating: number) => {
+    // Update local state first for instant responsiveness
+    set((state) => ({
+      songs: state.songs.map((s) => s.id === songId ? { ...s, rating } : s)
+    }))
+
+    const song = get().songs.find((s) => s.id === songId)
+    const songTitle = song ? song.title : 'a song'
+    const userName = get().userName || 'Your partner'
+    const pairId = get().pairId
+    const userId = get().user?.id
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/songs?id=eq.${songId}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({ rating })
+      })
+      if (res.ok) {
+        get().showToast('Song rated! ⭐', 'success')
+        
+        // Notify partner via reminders table insert
+        if (pairId && userId) {
+          await fetch(`${supabaseUrl}/rest/v1/reminders`, {
+            method: 'POST',
+            headers: {
+              'apikey': supabaseAnonKey,
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              pair_id: pairId,
+              created_by: userId,
+              title: 'Song Rated! 🎵',
+              message: `${userName} rated the song "${songTitle}" ${rating}/5 stars! ⭐`
+            })
+          }).catch(err => console.error('[MasSync] Error sending rating notification:', err))
+        }
+      }
+    } catch (e) {
+      console.error('[MasSync] Error rating song:', e)
+      get().showToast('Failed to save rating', 'error')
     }
   },
 
@@ -1945,6 +2188,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               get().fetchHobbies().catch(() => {})
               get().fetchTreeNodes()
               get().fetchWatchlist()
+              get().fetchTaskCompletions()
               get().subscribeToPresence()
               get().subscribeToDatabaseChanges()
               get().updateLastSeen()
@@ -2208,6 +2452,23 @@ export const useAppStore = create<AppState>((set, get) => ({
       )
       .on(
         'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'reminders', filter: `pair_id=eq.${pairId}` },
+        (payload: any) => {
+          const newReminder = payload.new
+          if (newReminder && newReminder.created_by !== user.id) {
+            get().showToast(newReminder.message, 'info')
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification(newReminder.title, {
+                body: newReminder.message,
+                icon: '/favicon.ico',
+                badge: '/favicon.ico'
+              })
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'pairs', filter: `id=eq.${pairId}` },
         async (payload: any) => {
           const updatedPair = payload.new as any
@@ -2216,6 +2477,11 @@ export const useAppStore = create<AppState>((set, get) => ({
             friendshipDuration: updatedPair.friends_since ? getFriendshipDurationStr(updatedPair.friends_since) : get().friendshipDuration
           })
         }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'task_completions', filter: `pair_id=eq.${pairId}` },
+        () => { get().fetchTaskCompletions() }
       )
       .subscribe()
   },
@@ -2310,7 +2576,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           artist: s.artist,
           message: s.message || '',
           gifted_by: s.gifted_by === userId ? 'you' : 'partner',
-          gifted_at: s.gifted_at
+          gifted_at: s.gifted_at,
+          rating: s.rating
         }))
         set({ songs: mappedSongs })
       }

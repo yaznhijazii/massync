@@ -1,9 +1,30 @@
 import React, { useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
-import { Calendar as CalendarIcon, MapPin, Clock, Plus, Smile, Compass, Camera, History, Map, Zap, Heart, Pizza, Coffee, Globe, Upload, X, User, Star } from 'lucide-react'
+import { Calendar as CalendarIcon, MapPin, Clock, Plus, Smile, Compass, Camera, History, Map, Zap, Heart, Pizza, Coffee, Globe, Upload, X, User, Trash2 } from 'lucide-react'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+
+function getVibeDetails(vibeStr: string) {
+  const v = vibeStr.toLowerCase()
+  if (v.includes('breakfast') || v.includes('food') || v.includes('eat') || v.includes('brunch') || v.includes('dinner') || v.includes('lunch') || v.includes('tasheh')) {
+    return { emoji: '🥞', color: 'from-amber-400 to-orange-500', bgLight: 'bg-amber-50 text-amber-600 border-amber-100' }
+  }
+  if (v.includes('coffee') || v.includes('cafe') || v.includes('chat') || v.includes('rumi') || v.includes('talk')) {
+    return { emoji: '☕', color: 'from-amber-700 to-amber-900', bgLight: 'bg-amber-100 text-amber-800 border-amber-250' }
+  }
+  if (v.includes('movie') || v.includes('cinema') || v.includes('show') || v.includes('watch')) {
+    return { emoji: '🍿', color: 'from-rose-500 to-red-600', bgLight: 'bg-rose-50 text-rose-600 border-rose-100' }
+  }
+  if (v.includes('study') || v.includes('read') || v.includes('work') || v.includes('book')) {
+    return { emoji: '📚', color: 'from-violet-500 to-purple-600', bgLight: 'bg-violet-50 text-violet-600 border-violet-100' }
+  }
+  if (v.includes('walk') || v.includes('run') || v.includes('sport') || v.includes('hike') || v.includes('gym')) {
+    return { emoji: '👟', color: 'from-emerald-400 to-teal-500', bgLight: 'bg-emerald-50 text-emerald-600 border-emerald-100' }
+  }
+  return { emoji: '✨', color: 'from-brand-cyan to-blue-500', bgLight: 'bg-cyan-50 text-cyan-600 border-cyan-100' }
+}
 
 export default function Memories() {
-  const { memories, partnerName, addMemory, addOuting, uploadMemoryPhoto, fetchMemories } = useAppStore()
+  const { memories, partnerName, addMemory, addOuting, uploadMemoryPhoto, fetchMemories, deleteMemory } = useAppStore()
   
   React.useEffect(() => {
     fetchMemories()
@@ -39,6 +60,7 @@ export default function Memories() {
   // Selection states for enhanced list UI/UX
   const [selectedOutingId, setSelectedOutingId] = useState<string | null>(null)
   const [selectedMemory, setSelectedMemory] = useState<any | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   const getMoodIcon = (mood: string) => {
     switch (mood) {
@@ -195,15 +217,14 @@ export default function Memories() {
     .filter((o) => new Date(o.date) >= new Date(new Date().setHours(0,0,0,0)))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0]
 
+  const deleteConfirmItem = memories.find((m) => m.id === deleteConfirmId)
+  const isOuting = deleteConfirmItem?.type === 'outing'
+
   return (
     <div className="relative pb-28 pt-14 px-6 min-h-screen animate-fade-in">
       {/* Header */}
       <header className="flex justify-between items-center mb-6">
         <div>
-          <span className="text-[10px] font-black uppercase tracking-wider text-brand-cyan bg-brand-cyan/10 border border-brand-cyan/20 px-3.5 py-1.5 rounded-full select-none inline-flex items-center gap-1.5">
-            <span>Our Shared Scrapbook</span>
-            <Star size={11} className="text-brand-cyan" />
-          </span>
           <h1 className="text-4xl font-extrabold text-brand-dark mt-3.5 tracking-tight">
             Memories
           </h1>
@@ -383,7 +404,7 @@ export default function Memories() {
                   <div 
                     key={item.id} 
                     onClick={() => setSelectedMemory(item)}
-                    className={`card-soft p-4 bg-white border border-slate-100 shadow-[0_12px_28px_rgba(0,0,0,0.04)] hover:scale-[1.015] hover:shadow-[0_16px_36px_rgba(0,188,212,0.05)] cursor-pointer transition-all duration-300 transform hover:-translate-y-0.5 hover:border-brand-cyan/20 ${tiltClass}`}
+                    className={`bg-white border border-slate-150 p-4 pb-8 rounded-2xl shadow-[0_12px_28px_rgba(0,0,0,0.04)] hover:scale-[1.015] hover:shadow-[0_16px_36px_rgba(0,188,212,0.06)] cursor-pointer transition-all duration-300 transform hover:-translate-y-0.5 hover:border-brand-cyan/30 ${tiltClass} border-b-[28px] border-b-slate-50/80`}
                   >
                     {item.photo && (
                       <div className="relative aspect-[4/3] rounded-2xl overflow-hidden mb-4 shadow-inner border border-slate-50">
@@ -424,71 +445,122 @@ export default function Memories() {
         <div className="space-y-6">
           {/* Outing Countdown Card */}
           {nextOuting ? (
-            <div className="card-soft bg-white/70 backdrop-blur-xl border border-white/50 relative overflow-hidden shadow-soft">
-              <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-amber"></div>
-              
-              <div className="flex justify-between items-start">
-                <span className="text-[9px] font-black uppercase bg-brand-amber/15 text-brand-amber border border-brand-amber/10 px-2.5 py-1 rounded-md inline-block select-none">
-                  Upcoming Outing ☕
-                </span>
-                <span className="text-[10px] font-black text-brand-amber bg-brand-amber/10 border border-brand-amber/10 px-3 py-1 rounded-full animate-pulse">
-                  In {Math.ceil((new Date(nextOuting.date).getTime() - new Date().setHours(0,0,0,0)) / (1000 * 60 * 60 * 24))} days
-                </span>
-              </div>
-              
-              <h3 className="font-black text-2xl text-brand-dark mt-4">{nextOuting.title}</h3>
-              
-              <div className="space-y-3 mt-4 text-slate-500 text-xs font-bold bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50 shadow-inner">
-                <div className="flex items-center">
-                  <CalendarIcon size={14} className="text-brand-amber mr-2.5 shrink-0" />
-                  <span>{new Date(nextOuting.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+            (() => {
+              const vibeInfo = getVibeDetails(nextOuting.vibe || '')
+              const daysLeft = Math.ceil((new Date(nextOuting.date).getTime() - new Date().setHours(0,0,0,0)) / (1000 * 60 * 60 * 24))
+              return (
+                <div className="relative bg-white/80 backdrop-blur-md rounded-[28px] border border-slate-100/80 shadow-xl overflow-hidden animate-slide-up">
+                  {/* Top vibe color band */}
+                  <div className={`h-2.5 w-full bg-gradient-to-r ${vibeInfo.color}`} />
+                  
+                  {/* Card Body */}
+                  <div className="p-6 relative">
+                    {/* Header Row */}
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-2 flex-1 min-w-0 pr-3">
+                        <span className={`inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full border ${vibeInfo.bgLight}`}>
+                          <span>{vibeInfo.emoji}</span>
+                          <span>{nextOuting.vibe || 'Outing'}</span>
+                        </span>
+                        <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none pt-1 truncate">
+                          {nextOuting.title}
+                        </h3>
+                      </div>
+                      
+                      {/* Days Left badge */}
+                      <div className="flex flex-col items-center justify-center bg-slate-50 border border-slate-100 rounded-2xl px-3 py-2 shrink-0">
+                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">In</span>
+                        <span className={`text-lg font-black leading-none my-0.5 bg-gradient-to-br ${vibeInfo.color} bg-clip-text text-transparent`}>
+                          {daysLeft}
+                        </span>
+                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Days</span>
+                      </div>
+                    </div>
+
+                    {/* Date and Time block */}
+                    <div className="mt-5 grid grid-cols-2 gap-3.5">
+                      <div className="bg-slate-50/50 border border-slate-100/60 p-3.5 rounded-2xl flex items-center gap-2.5">
+                        <div className={`w-9 h-9 rounded-xl bg-gradient-to-tr ${vibeInfo.color} flex items-center justify-center text-white shrink-0 shadow-sm`}>
+                          <CalendarIcon size={16} strokeWidth={2.5} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Date</p>
+                          <p className="text-[11px] font-black text-slate-700 leading-tight mt-0.5 truncate">
+                            {new Date(nextOuting.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-50/50 border border-slate-100/60 p-3.5 rounded-2xl flex items-center gap-2.5">
+                        <div className={`w-9 h-9 rounded-xl bg-gradient-to-tr ${vibeInfo.color} flex items-center justify-center text-white shrink-0 shadow-sm`}>
+                          <Clock size={16} strokeWidth={2.5} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Time</p>
+                          <p className="text-[11px] font-black text-slate-700 leading-tight mt-0.5 truncate">
+                            {nextOuting.time || 'TBD'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dashed ticket separator line */}
+                    <div className="relative my-6">
+                      <div className="absolute -left-[37px] -top-3 w-6 h-6 rounded-full bg-gradient-to-tr from-[#E0F2FE] to-[#F0F9FF] border border-slate-200/40 z-10 shadow-inner" />
+                      <div className="absolute -right-[37px] -top-3 w-6 h-6 rounded-full bg-gradient-to-tr from-[#E0F7FA] to-[#F0F9FF] border border-slate-200/40 z-10 shadow-inner" />
+                      <div className="border-t border-dashed border-slate-200/80 w-full" />
+                    </div>
+
+                    {/* Location & Details */}
+                    {nextOuting.place && (
+                      <div className="flex items-start gap-3 bg-slate-50/40 border border-slate-100/40 p-4 rounded-2xl">
+                        <div className="w-8 h-8 rounded-xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan shrink-0 mt-0.5">
+                          <MapPin size={15} strokeWidth={2.5} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Destination</p>
+                          <p className="text-xs font-black text-slate-700 leading-snug mt-0.5 truncate">{nextOuting.place}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Ticket links */}
+                    <div className="flex gap-2.5 mt-5">
+                      {nextOuting.location_url && (
+                        <a 
+                          href={nextOuting.location_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className={`flex-1 flex items-center justify-center gap-1.5 py-3.5 bg-gradient-to-r ${vibeInfo.color} text-white rounded-2xl font-black text-[10px] uppercase tracking-wider shadow-md active:scale-[0.98] transition-all cursor-pointer`}
+                        >
+                          <MapPin size={12} strokeWidth={2.5} />
+                          Location Map
+                        </a>
+                      )}
+                      {nextOuting.page_url && (
+                        <a 
+                          href={nextOuting.page_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex-1 flex items-center justify-center gap-1.5 py-3.5 bg-slate-100 hover:bg-slate-150 text-slate-600 border border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer"
+                        >
+                          <Globe size={12} strokeWidth={2.5} />
+                          Page details
+                        </a>
+                      )}
+                      <button 
+                        onClick={() => setDeleteConfirmId(nextOuting.id)}
+                        className="px-4 py-3.5 bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-100 rounded-2xl font-black text-[10px] uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                        title="Delete Outing"
+                      >
+                        <Trash2 size={13} strokeWidth={2.5} />
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                {nextOuting.time && (
-                  <div className="flex items-center">
-                    <Clock size={14} className="text-brand-amber mr-2.5 shrink-0" />
-                    <span>{nextOuting.time}</span>
-                  </div>
-                )}
-                {nextOuting.place && (
-                  <div className="flex items-center">
-                    <MapPin size={14} className="text-brand-amber mr-2.5 shrink-0" />
-                    <span>{nextOuting.place}</span>
-                  </div>
-                )}
-                {nextOuting.vibe && (
-                  <div className="flex items-center">
-                    <Smile size={14} className="text-brand-amber mr-2.5 shrink-0" />
-                    <span>Vibe: {nextOuting.vibe}</span>
-                  </div>
-                )}
-                {(nextOuting.location_url || nextOuting.page_url) && (
-                  <div className="flex gap-2 pt-2.5 border-t border-slate-200/50">
-                    {nextOuting.location_url && (
-                      <a 
-                        href={nextOuting.location_url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 px-3 py-1.5 bg-brand-amber/10 hover:bg-brand-amber/15 text-brand-amber border border-brand-amber/20 rounded-xl transition-all font-black text-[9px] uppercase tracking-wide cursor-pointer"
-                      >
-                        <MapPin size={10} />
-                        Location Link
-                      </a>
-                    )}
-                    {nextOuting.page_url && (
-                      <a 
-                        href={nextOuting.page_url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-655 border border-slate-200 rounded-xl transition-all font-black text-[9px] uppercase tracking-wide cursor-pointer"
-                      >
-                        <Globe size={10} />
-                        Page Link
-                      </a>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+              )
+            })()
           ) : (
             <div className="card-soft py-10 text-center text-brand-gray border border-dashed border-slate-200 bg-white/40 flex flex-col items-center justify-center select-none">
               <Map className="text-slate-300 mb-2 animate-bounce" size={28} />
@@ -550,34 +622,42 @@ export default function Memories() {
                         )}
                         
                         {/* Links Row */}
-                        {(o.location_url || o.page_url) && (
-                          <div className="flex gap-2.5 pt-2">
-                            {o.location_url && (
-                              <a 
-                                href={o.location_url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="flex items-center gap-1.5 px-3.5 py-2 bg-brand-amber/10 hover:bg-brand-amber/15 text-brand-amber border border-brand-amber/25 rounded-xl transition-all font-black text-[10px] uppercase tracking-wide active-pop cursor-pointer"
-                              >
-                                <MapPin size={11} />
-                                Open Location
-                              </a>
-                            )}
-                            {o.page_url && (
-                              <a 
-                                href={o.page_url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-655 border border-slate-200 rounded-xl transition-all font-black text-[10px] uppercase tracking-wide active-pop cursor-pointer"
-                              >
-                                <Globe size={11} />
-                                Website Page
-                              </a>
-                            )}
-                          </div>
-                        )}
+                        <div className="flex gap-2.5 pt-2">
+                          {o.location_url && (
+                            <a 
+                              href={o.location_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex items-center gap-1.5 px-3.5 py-2 bg-brand-amber/10 hover:bg-brand-amber/15 text-brand-amber border border-brand-amber/25 rounded-xl transition-all font-black text-[10px] uppercase tracking-wide active-pop cursor-pointer"
+                            >
+                              <MapPin size={11} />
+                              Open Location
+                            </a>
+                          )}
+                          {o.page_url && (
+                            <a 
+                              href={o.page_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-655 border border-slate-200 rounded-xl transition-all font-black text-[10px] uppercase tracking-wide active-pop cursor-pointer"
+                            >
+                              <Globe size={11} />
+                              Website Page
+                            </a>
+                          )}
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setDeleteConfirmId(o.id)
+                            }}
+                            className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-150 rounded-xl transition-all font-black text-[10px] uppercase tracking-wide active-pop cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <Trash2 size={11} />
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -956,16 +1036,40 @@ export default function Memories() {
               )}
             </div>
 
-            {/* Close Button */}
-            <button
-              onClick={() => setSelectedMemory(null)}
-              className="mt-6 w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-655 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors active-pop"
-            >
-              Close Memory
-            </button>
+            {/* Actions Row (Close & Delete) */}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setSelectedMemory(null)}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-650 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors active-pop"
+              >
+                Close Memory
+              </button>
+              <button
+                onClick={() => setDeleteConfirmId(selectedMemory.id)}
+                className="px-4 py-3 bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-100 rounded-xl font-bold transition-all active-pop"
+                title="Delete Memory"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={!!deleteConfirmId}
+        title={isOuting ? "Delete this outing?" : "Delete this memory?"}
+        message={isOuting ? "This will permanently remove the planned hangout." : "This will permanently remove the scrapbook memory."}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (deleteConfirmId) {
+            deleteMemory(deleteConfirmId)
+            setDeleteConfirmId(null)
+            setSelectedMemory(null)
+          }
+        }}
+        onCancel={() => setDeleteConfirmId(null)}
+      />
     </div>
   )
 }

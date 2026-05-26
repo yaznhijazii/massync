@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import type { PrayerLog } from '../store/useAppStore'
-import { Book, Check, Leaf, Sunrise, Sunset, Moon, Heart, BookOpen, Clock, Sun, SunDim, Play, Pause, Radio, Shuffle, Star } from 'lucide-react'
+import { Book, Check, Leaf, Sunrise, Sunset, Moon, Heart, BookOpen, Sun, SunDim, Play, Pause, Radio, Shuffle, Star } from 'lucide-react'
 
 interface AthkarItem {
   id: string
@@ -23,50 +23,58 @@ const PRAYER_THEMES: {
   }
 } = {
   fajr: {
-    cardBg: 'bg-gradient-to-tr from-sky-50/80 to-rose-50/50 border-sky-100/50 text-slate-800',
+    cardBg: 'bg-gradient-to-tr from-sky-50/60 to-rose-50/30 border-sky-100/40 text-slate-800 shadow-[inset_0_1px_1px_rgba(255,255,255,0.7)]',
     iconColor: 'text-sky-500',
-    titleColor: 'text-slate-800',
-    timeColor: 'text-sky-600/80',
-    checkBorder: 'border-sky-300 hover:border-sky-500',
-    checkboxBg: 'bg-sky-500 border-sky-500 text-white shadow-sky-500/20',
-    partnerCheckboxBg: 'bg-sky-100 border-sky-200 text-sky-600'
+    titleColor: 'text-slate-850 font-bold',
+    timeColor: 'text-sky-600/70 font-semibold',
+    checkBorder: 'border-sky-200 hover:border-sky-400 bg-white/60',
+    checkboxBg: 'bg-sky-500 border-sky-400 text-white shadow-[0_4px_12px_rgba(14,165,233,0.3)]',
+    partnerCheckboxBg: 'bg-sky-50 border-sky-100/70 text-sky-600'
   },
   dhuhr: {
-    cardBg: 'bg-gradient-to-tr from-amber-50/70 to-emerald-50/40 border-amber-100/40 text-slate-800',
-    iconColor: 'text-amber-500',
-    titleColor: 'text-slate-800',
-    timeColor: 'text-amber-600/80',
-    checkBorder: 'border-amber-300 hover:border-amber-500',
-    checkboxBg: 'bg-amber-500 border-amber-500 text-white shadow-amber-500/20',
-    partnerCheckboxBg: 'bg-amber-100 border-amber-200 text-amber-600'
+    cardBg: 'bg-gradient-to-tr from-amber-50/50 to-emerald-50/30 border-amber-100/40 text-slate-800 shadow-[inset_0_1px_1px_rgba(255,255,255,0.7)]',
+    iconColor: 'text-amber-555',
+    titleColor: 'text-slate-850 font-bold',
+    timeColor: 'text-amber-600/70 font-semibold',
+    checkBorder: 'border-amber-200 hover:border-amber-400 bg-white/60',
+    checkboxBg: 'bg-amber-500 border-amber-400 text-white shadow-[0_4px_12px_rgba(245,158,11,0.3)]',
+    partnerCheckboxBg: 'bg-amber-50 border-amber-100/70 text-amber-600'
   },
   asr: {
-    cardBg: 'bg-gradient-to-tr from-orange-50/80 to-amber-50/50 border-orange-100/40 text-slate-800',
+    cardBg: 'bg-gradient-to-tr from-orange-50/60 to-amber-50/30 border-orange-100/40 text-slate-800 shadow-[inset_0_1px_1px_rgba(255,255,255,0.7)]',
     iconColor: 'text-orange-500',
-    titleColor: 'text-slate-800',
-    timeColor: 'text-orange-600/80',
-    checkBorder: 'border-orange-300 hover:border-orange-500',
-    checkboxBg: 'bg-orange-500 border-orange-500 text-white shadow-orange-500/20',
-    partnerCheckboxBg: 'bg-orange-100 border-orange-200 text-orange-600'
+    titleColor: 'text-slate-850 font-bold',
+    timeColor: 'text-orange-600/70 font-semibold',
+    checkBorder: 'border-orange-200 hover:border-orange-400 bg-white/60',
+    checkboxBg: 'bg-orange-500 border-orange-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]',
+    partnerCheckboxBg: 'bg-orange-50 border-orange-100/70 text-orange-600'
   },
   maghrib: {
-    cardBg: 'bg-gradient-to-tr from-rose-50/60 to-indigo-50/60 border-indigo-100/40 text-slate-800',
+    cardBg: 'bg-gradient-to-tr from-rose-50/50 to-indigo-50/40 border-indigo-100/30 text-slate-800 shadow-[inset_0_1px_1px_rgba(255,255,255,0.7)]',
     iconColor: 'text-indigo-500',
-    titleColor: 'text-slate-800',
-    timeColor: 'text-indigo-600/80',
-    checkBorder: 'border-indigo-300 hover:border-indigo-500',
-    checkboxBg: 'bg-indigo-500 border-indigo-500 text-white shadow-indigo-500/20',
-    partnerCheckboxBg: 'bg-indigo-100 border-indigo-200 text-indigo-600'
+    titleColor: 'text-slate-855 font-bold',
+    timeColor: 'text-indigo-600/70 font-semibold',
+    checkBorder: 'border-indigo-200 hover:border-indigo-400 bg-white/60',
+    checkboxBg: 'bg-indigo-500 border-indigo-400 text-white shadow-[0_4px_12px_rgba(99,102,241,0.3)]',
+    partnerCheckboxBg: 'bg-indigo-50 border-indigo-100/70 text-indigo-650'
   },
   isha: {
-    cardBg: 'bg-gradient-to-tr from-slate-900 via-slate-850 to-indigo-950 border-slate-800/40 text-slate-100',
+    cardBg: 'bg-gradient-to-tr from-slate-900 via-slate-850 to-indigo-950 border-slate-800/45 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]',
     iconColor: 'text-indigo-300',
-    titleColor: 'text-slate-100',
-    timeColor: 'text-indigo-300/80',
-    checkBorder: 'border-slate-700 hover:border-indigo-500',
-    checkboxBg: 'bg-indigo-500 border-indigo-500 text-white shadow-indigo-500/35',
-    partnerCheckboxBg: 'bg-indigo-950/80 border-indigo-900 text-indigo-300'
+    titleColor: 'text-slate-100 font-bold',
+    timeColor: 'text-indigo-300/70 font-semibold',
+    checkBorder: 'border-slate-700 hover:border-indigo-500 bg-slate-800/40',
+    checkboxBg: 'bg-indigo-500 border-indigo-400 text-white shadow-[0_4px_12px_rgba(99,102,241,0.45)]',
+    partnerCheckboxBg: 'bg-indigo-950/70 border-indigo-900/60 text-indigo-300'
   }
+}
+
+function getArabicFontSizeClass(text: string): string {
+  const len = text.length
+  if (len > 250) return 'text-[14px] leading-[2.1rem]'
+  if (len > 150) return 'text-[15px] leading-[2.2rem]'
+  if (len > 85) return 'text-[17px] leading-[2.4rem] font-semibold'
+  return 'text-[20px] leading-[2.6rem] font-bold'
 }
 
 export default function Islamic() {
@@ -80,6 +88,8 @@ export default function Islamic() {
     userQuranPage,
     partnerQuranPage,
     quranTarget,
+    userAvatar,
+    partnerAvatar,
     togglePrayer, 
     fetchPrayers,
     fetchAthkarLogs,
@@ -370,13 +380,13 @@ export default function Islamic() {
       {/* Header */}
       <header className="flex justify-between items-center mb-6">
         <div>
-          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1.5 rounded-full select-none inline-flex items-center gap-1.5">
-            <span>{hijriDate}</span>
-            <Moon size={11} className="text-emerald-600" />
-          </span>
-          <h1 className="text-4xl font-extrabold text-brand-dark mt-3.5 tracking-tight">
+          <h1 className="text-4xl font-extrabold text-brand-dark tracking-tight font-sans">
             Islamic Corner
           </h1>
+          <p className="text-xs text-slate-500 mt-1.5 select-none flex items-center gap-1">
+            <span>{hijriDate}</span>
+            <Moon size={12} className="text-slate-400" />
+          </p>
         </div>
         <div className="w-12 h-12 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 shadow-sm flex items-center justify-center relative overflow-hidden shrink-0">
           <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/10 to-teal-500/5 opacity-50" />
@@ -392,12 +402,12 @@ export default function Islamic() {
             onClick={() => setActiveTab(tab)}
             className={`flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wide transition-all duration-200 active-pop flex items-center justify-center gap-1.5 ${
               activeTab === tab
-                ? 'bg-white text-emerald-700 shadow-sm border border-slate-100/50'
-                : 'text-slate-400 hover:text-slate-600'
+                ? 'bg-white text-emerald-800 shadow-sm border border-slate-100/50'
+                : 'text-slate-405 hover:text-slate-700'
             }`}
           >
-            {tab === 'prayer' && <BookOpen size={13} />}
-            {tab === 'athkar' && <Clock size={13} />}
+            {tab === 'prayer' && <Sunrise size={13} />}
+            {tab === 'athkar' && <Leaf size={13} />}
             {tab === 'quran' && <BookOpen size={13} />}
             {tab === 'prayer' ? 'Prayers' : tab === 'athkar' ? 'Athkar' : 'Quran'}
           </button>
@@ -446,30 +456,34 @@ export default function Islamic() {
                         <span className="text-[9px] font-black uppercase text-slate-400 select-none">You</span>
                         <button
                           onClick={() => togglePrayer(key)}
-                          className={`w-8 h-8 rounded-xl border-2 transition-all flex items-center justify-center active-pop ${
+                          className={`w-8 h-8 rounded-xl border-2 transition-all flex items-center justify-center active-pop overflow-hidden relative ${
                             isMyDone
                               ? theme.checkboxBg
                               : theme.checkBorder + ' bg-white/70'
                           }`}
                         >
-                          {isMyDone && <Check size={16} strokeWidth={3} />}
+                          {isMyDone ? (
+                            <Check size={16} strokeWidth={3.5} className="animate-scale-in text-white" />
+                          ) : (
+                            <div className="w-1.5 h-1.5 rounded-full bg-slate-200" />
+                          )}
                         </button>
                       </div>
 
                       {/* Partner Checkbox (Read Only visual) */}
                       <div className="flex flex-col items-center space-y-1">
-                        <span className="text-[9px] font-black uppercase text-slate-400 select-none">{partnerName}</span>
+                        <span className="text-[9px] font-black uppercase text-slate-400 select-none">{partnerName?.split(' ')[0]}</span>
                         <div
-                          className={`w-8 h-8 rounded-xl border-2 flex items-center justify-center transition-all ${
+                          className={`w-8 h-8 rounded-xl border-2 flex items-center justify-center transition-all overflow-hidden ${
                             isPartnerDone
-                              ? theme.partnerCheckboxBg
+                              ? theme.partnerCheckboxBg + ' border-transparent'
                               : 'border-slate-200/50 bg-slate-100/30'
                           }`}
                         >
                           {isPartnerDone ? (
-                            <Check size={14} strokeWidth={3} />
+                            <Check size={14} strokeWidth={3.5} className="animate-scale-in" />
                           ) : (
-                            <span className="text-[10px] text-slate-300 font-extrabold select-none">••</span>
+                            <span className="text-[10px] text-slate-350 font-extrabold select-none">••</span>
                           )}
                         </div>
                       </div>
@@ -499,13 +513,13 @@ export default function Islamic() {
       {activeTab === 'athkar' && (
         <div className="space-y-6">
           {/* Sub-tabs for Morning / Evening */}
-          <div className="flex space-x-3 mb-2 bg-slate-100/50 p-1.5 rounded-2xl border border-slate-100">
+          <div className="flex bg-slate-100/60 backdrop-blur-md p-1 rounded-2xl mb-6 border border-slate-200/50">
             <button
               onClick={() => setAthkarTab('morning')}
-              className={`flex-1 py-2 px-3 rounded-xl font-black text-xs uppercase tracking-wide transition-all flex items-center justify-center space-x-1.5 active-pop ${
+              className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs uppercase tracking-wide transition-all flex items-center justify-center space-x-1.5 active-pop ${
                 athkarTab === 'morning'
-                  ? 'bg-emerald-500 text-white shadow-sm border border-emerald-400/20'
-                  : 'text-slate-400 hover:text-slate-600'
+                  ? 'bg-emerald-500 border border-emerald-400/20 text-white shadow-[0_4px_12px_rgba(16,185,129,0.2)]'
+                  : 'text-slate-455 hover:text-slate-700'
               }`}
             >
               <Sunrise size={13} />
@@ -513,10 +527,10 @@ export default function Islamic() {
             </button>
             <button
               onClick={() => setAthkarTab('evening')}
-              className={`flex-1 py-2 px-3 rounded-xl font-black text-xs uppercase tracking-wide transition-all flex items-center justify-center space-x-1.5 active-pop ${
+              className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs uppercase tracking-wide transition-all flex items-center justify-center space-x-1.5 active-pop ${
                 athkarTab === 'evening'
-                  ? 'bg-emerald-800 text-white shadow-sm border border-emerald-700/20'
-                  : 'text-slate-400 hover:text-slate-600'
+                  ? 'bg-indigo-900 border border-indigo-850/20 text-white shadow-[0_4px_12px_rgba(49,46,129,0.2)]'
+                  : 'text-slate-455 hover:text-slate-700'
               }`}
             >
               <Sunset size={13} />
@@ -528,7 +542,7 @@ export default function Islamic() {
             <span className="text-[10px] font-black text-slate-400 uppercase select-none">Tap card to count progress</span>
             <button
               onClick={() => handleResetAthkar(athkarTab)}
-              className="text-[10px] font-black text-rose-500 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-100 hover:bg-rose-100 active-pop uppercase"
+              className="text-[10px] font-black text-rose-500 bg-rose-50 px-3.5 py-1.5 rounded-xl border border-rose-100 hover:bg-rose-100 active-pop uppercase transition-all shadow-sm"
             >
               Reset All
             </button>
@@ -552,14 +566,14 @@ export default function Islamic() {
                   <button
                     key={item.id}
                     onClick={() => handleAthkarCount(item.id, item.count)}
-                    className={`card-soft w-full text-left bg-white border transition-all duration-300 relative overflow-hidden group hover:scale-[1.015] hover:shadow-soft active-pop p-5 ${
+                    className={`card-soft w-full text-left transition-all duration-300 relative overflow-hidden group hover:scale-[1.012] hover:shadow-soft active-pop p-5 border ${
                       isCompleted
-                        ? 'border-emerald-500/35 bg-emerald-50/5 shadow-[0_12px_24px_rgba(16,185,129,0.02)]'
-                        : 'border-slate-100/80 hover:border-emerald-300/40 shadow-sm'
+                        ? 'border-emerald-500/25 bg-gradient-to-tr from-emerald-50/40 to-teal-50/20 shadow-[0_12px_24px_rgba(16,185,129,0.03)]'
+                        : 'border-slate-200/50 bg-white/70 backdrop-blur-md hover:border-emerald-300/40 shadow-sm'
                     }`}
                   >
                     {/* Top Row: Meta & Progress */}
-                    <div className="flex justify-between items-center pb-3 border-b border-slate-100/50 w-full mb-4">
+                    <div className="flex justify-between items-center pb-3 border-b border-slate-100/55 w-full mb-4">
                       {/* Left: Counter Progress Circle */}
                       <div className="flex items-center space-x-2.5">
                         <div className="relative w-8 h-8 flex items-center justify-center shrink-0">
@@ -568,7 +582,7 @@ export default function Islamic() {
                               cx="16"
                               cy="16"
                               r="13"
-                              className="stroke-slate-100"
+                              className="stroke-slate-100/80"
                               strokeWidth={3}
                               fill="transparent"
                             />
@@ -577,9 +591,9 @@ export default function Islamic() {
                               cy="16"
                               r="13"
                               className={`transition-all duration-300 ${
-                                isCompleted ? 'stroke-emerald-500' : 'stroke-emerald-600'
+                                isCompleted ? 'stroke-emerald-555 drop-shadow-[0_0_3px_rgba(16,185,129,0.4)]' : 'stroke-emerald-600'
                               }`}
-                              strokeWidth={3}
+                              strokeWidth={3.5}
                               strokeDasharray={2 * Math.PI * 13}
                               strokeDashoffset={2 * Math.PI * 13 - (myCount / item.count) * (2 * Math.PI * 13)}
                               strokeLinecap="round"
@@ -590,7 +604,7 @@ export default function Islamic() {
                             {myCount}
                           </span>
                         </div>
-                        <span className="text-[10px] text-slate-400 font-extrabold uppercase">
+                        <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wide">
                           Progress
                         </span>
                       </div>
@@ -625,14 +639,14 @@ export default function Islamic() {
                     </div>
 
                     {/* Zekr Text (Arabic) */}
-                    <p className="text-[22px] font-bold text-slate-800 text-center leading-[2.4rem] font-arabic dir-rtl mb-4 select-none px-1 w-full">
+                    <p className={`font-arabic dir-rtl mb-4 select-none px-1 w-full text-slate-800 text-center ${getArabicFontSizeClass(item.text)}`}>
                       {item.text}
                     </p>
 
                     {/* Virtue / Bless (Arabic Text styled properly) */}
                     {item.translation && (
-                      <div className="bg-emerald-50/20 border border-emerald-100/30 p-3.5 rounded-2xl text-[12px] text-emerald-800/80 leading-relaxed font-bold text-center dir-rtl w-full mt-2 select-none flex items-start gap-2 justify-center">
-                        <Leaf size={12} className="text-emerald-500 mt-0.5 shrink-0" />
+                      <div className="bg-slate-50/50 border border-slate-100/60 p-3.5 rounded-2xl text-[11px] text-slate-500 leading-relaxed font-semibold text-center w-full mt-3 select-none flex items-start gap-2 justify-center transition-all group-hover:bg-slate-50/90">
+                        <Leaf size={12} className="text-emerald-500 shrink-0 mt-0.5" />
                         <span>{item.translation}</span>
                       </div>
                     )}
@@ -648,39 +662,39 @@ export default function Islamic() {
       {activeTab === 'quran' && (
         <div className="space-y-6">
           {/* Verse of the day */}
-          <section className="card-soft bg-gradient-to-tr from-slate-900 via-slate-850 to-indigo-950 text-white relative overflow-hidden border border-slate-800/40 p-6 shadow-xl">
+          <section className="card-soft bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white relative overflow-hidden border border-amber-500/20 p-6.5 shadow-xl shadow-indigo-950/20">
             <div className="absolute right-[-10px] bottom-[-20px] text-white/5 font-arabic text-9xl pointer-events-none select-none">
               قرآن
             </div>
             
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center space-x-2 text-emerald-400">
-                <Star size={14} className="text-emerald-400" />
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center space-x-2 text-amber-400">
+                <Star size={14} className="text-amber-400 fill-amber-400/20 animate-pulse" />
                 <span className="text-[10px] font-black uppercase tracking-wider">Verse of the Day</span>
               </div>
               <button 
                 type="button" 
                 onClick={handleShuffleVerse}
-                className="text-slate-400 hover:text-emerald-400 p-1.5 rounded-xl hover:bg-white/10 active-pop transition-all shrink-0"
+                className="text-slate-400 hover:text-amber-300 p-2 rounded-xl hover:bg-white/10 active-pop transition-all shrink-0"
                 title="Shuffle Verse"
               >
                 <Shuffle size={13} />
               </button>
             </div>
 
-            <p className="text-2xl font-bold text-right leading-loose mb-4 font-arabic dir-rtl text-slate-100 selection:bg-emerald-500 select-none">
+            <p className={`text-right leading-loose mb-5 font-arabic dir-rtl text-slate-100 select-none ${getArabicFontSizeClass(verse.arabic)}`}>
               {verse.arabic}
             </p>
-            <p className="text-[12px] text-slate-350 leading-relaxed font-semibold mb-4 italic text-left">
+            <p className="text-[11px] text-slate-300 leading-relaxed font-semibold mb-5 italic text-left pl-3.5 border-l-2 border-emerald-500/40">
               "{verse.translation}"
             </p>
-            <span className="text-[9px] font-black text-slate-400 bg-white/10 px-3 py-1.5 rounded-full border border-white/5 uppercase select-none">
+            <span className="text-[9px] font-black text-amber-300 bg-amber-500/10 px-3.5 py-1.5 rounded-full border border-amber-500/20 uppercase select-none tracking-wider inline-block">
               {verse.surah}
             </span>
           </section>
 
           {/* Quran Live Radio Player */}
-          <section className="card-soft bg-white/70 border border-white/50 p-5 shadow-soft">
+          <section className="card-soft bg-white/70 border border-white/50 p-5 shadow-soft hover:shadow-md transition-all duration-300">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100/50 mb-3.5">
               <div className="flex items-center space-x-2.5">
                 <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
@@ -708,7 +722,7 @@ export default function Islamic() {
               {/* Station Selection (Horizontal scrollable pills) */}
               <div className="flex-1 min-w-0">
                 <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">Select Channel</span>
-                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin select-none">
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none select-none">
                   {RADIO_STATIONS.map((st) => {
                     const isActive = activeStation === st.value
                     return (
@@ -719,10 +733,10 @@ export default function Islamic() {
                           setActiveStation(st.value)
                           setIsPlayingRadio(true) // autoplay on click
                         }}
-                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider shrink-0 transition-all active-pop border ${
+                        className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider shrink-0 transition-all active-pop border ${
                           isActive 
-                            ? 'bg-emerald-500 border-emerald-400 text-white shadow-sm shadow-emerald-500/15' 
-                            : 'bg-slate-50 border-slate-200/60 text-slate-500 hover:bg-slate-100'
+                            ? 'bg-emerald-600 border-emerald-500 text-white shadow-md shadow-emerald-500/20' 
+                            : 'bg-white border-slate-200/80 text-slate-500 hover:bg-slate-50'
                         }`}
                       >
                         {st.label}
@@ -736,10 +750,10 @@ export default function Islamic() {
               <button
                 type="button"
                 onClick={() => setIsPlayingRadio(!isPlayingRadio)}
-                className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 active-pop transition-all border ${
+                className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 active-pop transition-all border ${
                   isPlayingRadio 
-                    ? 'bg-emerald-500 border-emerald-400 text-white shadow-lg shadow-emerald-500/25' 
-                    : 'bg-white border-slate-200 hover:border-emerald-500 text-slate-700'
+                    ? 'bg-gradient-to-tr from-emerald-500 to-teal-500 border-emerald-400 text-white shadow-lg shadow-emerald-500/30' 
+                    : 'bg-white border-slate-200 hover:border-emerald-500 text-slate-700 hover:shadow-sm'
                 }`}
               >
                 {isPlayingRadio ? (
@@ -756,14 +770,14 @@ export default function Islamic() {
             <h3 className="font-black text-base text-brand-dark mb-4">Khatma Tracker Together</h3>
             
             {/* Khatma progress bar */}
-            <div className="mb-6 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
+            <div className="mb-6 bg-slate-50/50 p-4.5 rounded-2xl border border-slate-100/50">
               <div className="flex justify-between items-center text-xs font-black mb-2 select-none">
-                <span className="text-slate-400 uppercase">Joint Progress</span>
-                <span className="text-brand-purple">{((Math.max(userQuranPage, partnerQuranPage) / 604) * 100).toFixed(1)}% Completed</span>
+                <span className="text-slate-400 uppercase tracking-wide text-[10px]">Joint Progress</span>
+                <span className="text-brand-purple font-black">{((Math.max(userQuranPage, partnerQuranPage) / 604) * 100).toFixed(1)}% Completed</span>
               </div>
-              <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden shadow-inner">
+              <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden shadow-inner relative">
                 <div 
-                  className="h-full bg-gradient-to-r from-emerald-500 to-brand-cyan transition-all duration-500 rounded-full" 
+                  className="h-full bg-gradient-to-r from-emerald-500 via-teal-500 to-brand-cyan transition-all duration-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.3)] animate-shimmer" 
                   style={{ width: `${Math.min(100, Math.max(0, (Math.max(userQuranPage, partnerQuranPage) / 604) * 100))}%` }}
                 ></div>
               </div>
@@ -771,25 +785,35 @@ export default function Islamic() {
 
             <div className="grid grid-cols-2 gap-4 pb-4 border-b border-slate-100/60">
               {/* My Progress */}
-              <div className="bg-slate-50/50 border border-slate-100/50 p-4 rounded-2xl text-center shadow-inner">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Your Page</span>
-                <p className="text-3xl font-black text-brand-dark font-mono">{userQuranPage}</p>
+              <div className="bg-slate-50/50 border border-slate-100/50 p-4.5 rounded-2xl text-center shadow-inner relative flex flex-col items-center group hover:bg-slate-50/80 transition-all">
+                {userAvatar && (
+                  <div className="w-10 h-10 rounded-full border-2 border-white shadow-md overflow-hidden mb-2.5 transition-transform group-hover:scale-105 duration-300">
+                    <img src={userAvatar} alt="You" className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Your Page</span>
+                <p className="text-3.5xl font-black text-brand-dark font-mono leading-none my-1 tracking-tight">{userQuranPage}</p>
                 <button
                   onClick={() => {
                     setLogPageInput(userQuranPage.toString())
                     setIsLoggingQuran(true)
                   }}
-                  className="mt-3.5 text-xs font-black text-emerald-700 bg-emerald-100/60 hover:bg-emerald-100 border border-emerald-200/20 px-3 py-2 rounded-xl w-full active-pop shadow-sm transition-all"
+                  className="mt-3.5 text-xs font-black text-emerald-700 bg-emerald-100/60 hover:bg-emerald-100 border border-emerald-250/20 px-3 py-2.5 rounded-xl w-full active-pop shadow-sm transition-all"
                 >
                   Log Page
                 </button>
               </div>
 
               {/* Partner Progress */}
-              <div className="bg-slate-50/50 border border-slate-100/50 p-4 rounded-2xl text-center shadow-inner">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">{partnerName}'s Page</span>
-                <p className="text-3xl font-black text-brand-dark font-mono">{partnerQuranPage}</p>
-                <div className="mt-3.5 text-[10px] font-extrabold text-slate-400 bg-slate-100 border border-slate-200/50 py-2 rounded-xl select-none">
+              <div className="bg-slate-50/50 border border-slate-100/50 p-4.5 rounded-2xl text-center shadow-inner relative flex flex-col items-center group hover:bg-slate-50/80 transition-all">
+                {partnerAvatar && (
+                  <div className="w-10 h-10 rounded-full border-2 border-white shadow-md overflow-hidden mb-2.5 transition-transform group-hover:scale-105 duration-300">
+                    <img src={partnerAvatar} alt={partnerName} className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">{partnerName}'s Page</span>
+                <p className="text-3.5xl font-black text-brand-dark font-mono leading-none my-1 tracking-tight">{partnerQuranPage}</p>
+                <div className="mt-3.5 text-[10px] font-extrabold text-slate-455 bg-slate-100 border border-slate-200/50 py-2.5 rounded-xl select-none w-full shadow-sm">
                   Sync Live
                 </div>
               </div>
