@@ -57,9 +57,6 @@ export default function Home() {
 
   const sharedTasks = tasks.filter((t) => t.category === 'shared')
   const completedShared = sharedTasks.filter((t) => t.is_done).length
-  const lastCompletedTask = tasks
-    .filter((t) => t.is_done && t.category === 'shared' && t.done_at)
-    .sort((a, b) => new Date(b.done_at || 0).getTime() - new Date(a.done_at || 0).getTime())[0]
   const activeHobby = hobbies.find((h) => h.status === 'active')
   const nextOuting = memories
     .filter((m) => m.type === 'outing' && new Date(m.date) >= new Date(new Date().setHours(0,0,0,0)))
