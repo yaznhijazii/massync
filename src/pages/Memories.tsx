@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useAppStore } from '../store/useAppStore'
-import { Calendar as CalendarIcon, MapPin, Clock, Plus, Smile, Compass, Camera, History, Map, Zap, Heart, Pizza, Coffee, Globe, Upload, X, User, Trash2 } from 'lucide-react'
+import { Calendar as CalendarIcon, MapPin, Clock, Plus, Smile, Compass, Camera, History, Map, Zap, Heart, Pizza, Coffee, Globe, Upload, X, User, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 
 function getVibeDetails(vibeStr: string) {
@@ -39,12 +40,13 @@ export default function Memories() {
   const [note, setNote] = useState('')
   const [moodEmoji, setMoodEmoji] = useState('happy')
   const [tagInput, setTagInput] = useState('')
-  const [photoUrl, setPhotoUrl] = useState('')
+  const [inputUrl, setInputUrl] = useState('')
+  const [urlList, setUrlList] = useState<string[]>([])
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   
   // File upload states
-  const [photoFile, setPhotoFile] = useState<File | null>(null)
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [photoFiles, setPhotoFiles] = useState<File[]>([])
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file')
 
@@ -62,24 +64,7 @@ export default function Memories() {
   const [selectedMemory, setSelectedMemory] = useState<any | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
-  const getMoodIcon = (mood: string) => {
-    switch (mood) {
-      case 'happy':
-        return <Smile className="text-emerald-500" size={16} />
-      case 'loved':
-        return <Heart className="text-rose-500 fill-rose-500" size={16} />
-      case 'funny':
-        return <Smile className="text-amber-500" size={16} />
-      case 'excited':
-        return <Zap className="text-purple-500" size={16} />
-      case 'hungry':
-        return <Pizza className="text-orange-500" size={16} />
-      case 'chill':
-        return <Coffee className="text-blue-500" size={16} />
-      default:
-        return <Smile className="text-slate-400" size={16} />
-    }
-  }
+
 
   // Calendar State (Hardcoded May 2026 for simplicity and elegance)
   const [currentYear] = useState(2026)
@@ -125,21 +110,33 @@ export default function Memories() {
   }
 
   const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setPhotoFile(file)
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setPhotoPreview(reader.result as string)
-      }
-      reader.readAsDataURL(file)
+    const files = Array.from(e.target.files || [])
+    if (files.length > 0) {
+      setPhotoFiles((prev) => [...prev, ...files])
+      files.forEach((file) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          setPhotoPreviews((prev) => [...prev, reader.result as string])
+        }
+        reader.readAsDataURL(file)
+      })
     }
   }
 
-  const handleClearPhoto = () => {
-    setPhotoFile(null)
-    setPhotoPreview(null)
-    setPhotoUrl('')
+  const handleRemovePhotoFile = (index: number) => {
+    setPhotoFiles((prev) => prev.filter((_, i) => i !== index))
+    setPhotoPreviews((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleAddUrl = () => {
+    if (inputUrl.trim()) {
+      setUrlList((prev) => [...prev, inputUrl.trim()])
+      setInputUrl('')
+    }
+  }
+
+  const handleRemoveUrl = (index: number) => {
+    setUrlList((prev) => prev.filter((_, i) => i !== index))
   }
 
   // Handler for adding memory
@@ -149,14 +146,14 @@ export default function Memories() {
     
     setIsUploading(true)
     try {
-      let finalPhotoUrl = ''
+      let finalPhotoUrls: string[] = []
       
       if (uploadMode === 'file') {
-        if (photoFile) {
-          finalPhotoUrl = await uploadMemoryPhoto(photoFile)
+        if (photoFiles.length > 0) {
+          finalPhotoUrls = await Promise.all(photoFiles.map(file => uploadMemoryPhoto(file)))
         }
       } else {
-        finalPhotoUrl = photoUrl
+        finalPhotoUrls = urlList
       }
       
       const tags = tagInput.split(',').map((t) => t.trim()).filter(Boolean)
@@ -167,16 +164,18 @@ export default function Memories() {
         note,
         mood_emoji: moodEmoji,
         tags,
-        photo: finalPhotoUrl || undefined,
+        photo: finalPhotoUrls[0] || undefined,
+        photos: finalPhotoUrls,
       })
       
       setTitle('')
       setNote('')
       setMoodEmoji('happy')
       setTagInput('')
-      setPhotoUrl('')
-      setPhotoFile(null)
-      setPhotoPreview(null)
+      setInputUrl('')
+      setUrlList([])
+      setPhotoFiles([])
+      setPhotoPreviews([])
       setIsAddingMemory(false)
     } catch (err) {
       console.error('[MasSync] Failed to save memory photo:', err)
@@ -396,46 +395,16 @@ export default function Memories() {
             {scrapbookItems.length === 0 ? (
               <p className="text-center py-8 text-[11px] font-bold text-slate-400 select-none">No memories posted yet. Create the first one! 📸</p>
             ) : (
-              scrapbookItems.map((item, index) => {
-                // Alternating physical polaroid tilts
-                const tiltClass = index % 2 === 0 ? 'rotate-1 hover:rotate-0' : '-rotate-1 hover:rotate-0'
-                
-                return (
-                  <div 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {scrapbookItems.map((item, index) => (
+                  <PolaroidCard 
                     key={item.id} 
-                    onClick={() => setSelectedMemory(item)}
-                    className={`bg-white border border-slate-150 p-4 pb-8 rounded-2xl shadow-[0_12px_28px_rgba(0,0,0,0.04)] hover:scale-[1.015] hover:shadow-[0_16px_36px_rgba(0,188,212,0.06)] cursor-pointer transition-all duration-300 transform hover:-translate-y-0.5 hover:border-brand-cyan/30 ${tiltClass} border-b-[28px] border-b-slate-50/80`}
-                  >
-                    {item.photo && (
-                      <div className="relative aspect-[4/3] rounded-2xl overflow-hidden mb-4 shadow-inner border border-slate-50">
-                        <img src={item.photo} alt={item.title} className="w-full h-full object-cover" />
-                        <div className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-white/95 backdrop-blur-sm flex items-center justify-center shadow-md">
-                          {getMoodIcon(item.mood_emoji)}
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className="px-2 pb-2">
-                      <span className="text-[10px] font-black text-brand-cyan uppercase tracking-wider bg-brand-cyan/5 px-2 py-0.5 rounded-md border border-brand-cyan/10 select-none">
-                        {new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </span>
-                      <h4 className="font-black text-lg text-brand-dark mt-2.5 leading-tight">{item.title}</h4>
-                      <p className="text-xs text-slate-500 mt-2 leading-relaxed font-bold line-clamp-3">{item.note}</p>
-                      
-                      {/* Tags */}
-                      {item.tags && item.tags.length > 0 && (
-                        <div className="flex gap-1.5 mt-4 flex-wrap">
-                          {item.tags.map((tag) => (
-                            <span key={tag} className="text-[9px] font-extrabold text-slate-400 bg-slate-50 border border-slate-100/50 rounded-md px-2 py-0.5 select-none">
-                              #{tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })
+                    item={item} 
+                    index={index} 
+                    onSelect={() => setSelectedMemory(item)} 
+                  />
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -449,28 +418,27 @@ export default function Memories() {
               const vibeInfo = getVibeDetails(nextOuting.vibe || '')
               const daysLeft = Math.ceil((new Date(nextOuting.date).getTime() - new Date().setHours(0,0,0,0)) / (1000 * 60 * 60 * 24))
               return (
-                <div className="relative bg-white/80 backdrop-blur-md rounded-[28px] border border-slate-100/80 shadow-xl overflow-hidden animate-slide-up">
+                <div className="card-soft bg-white/75 backdrop-blur-xl border border-white/50 shadow-soft rounded-[32px] p-6 relative overflow-hidden animate-slide-up hover:scale-[1.01] hover:shadow-soft transition-all duration-300">
                   {/* Top vibe color band */}
-                  <div className={`h-2.5 w-full bg-gradient-to-r ${vibeInfo.color}`} />
+                  <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${vibeInfo.color} opacity-90`} />
                   
                   {/* Card Body */}
-                  <div className="p-6 relative">
+                  <div className="relative">
                     {/* Header Row */}
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-start mt-2">
                       <div className="space-y-2 flex-1 min-w-0 pr-3">
-                        <span className={`inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full border ${vibeInfo.bgLight}`}>
-                          <span>{vibeInfo.emoji}</span>
+                        <span className={`inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full border bg-white/60 backdrop-blur-sm shadow-sm border-slate-200/40 text-slate-705`}>
                           <span>{nextOuting.vibe || 'Outing'}</span>
                         </span>
-                        <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none pt-1 truncate">
+                        <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none pt-1.5 truncate">
                           {nextOuting.title}
                         </h3>
                       </div>
                       
                       {/* Days Left badge */}
-                      <div className="flex flex-col items-center justify-center bg-slate-50 border border-slate-100 rounded-2xl px-3 py-2 shrink-0">
+                      <div className="flex flex-col items-center justify-center bg-white/60 backdrop-blur-md border border-white/60 rounded-2xl px-3 py-2 shrink-0 shadow-sm">
                         <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">In</span>
-                        <span className={`text-lg font-black leading-none my-0.5 bg-gradient-to-br ${vibeInfo.color} bg-clip-text text-transparent`}>
+                        <span className={`text-xl font-black leading-none my-0.5 bg-gradient-to-br ${vibeInfo.color} bg-clip-text text-transparent font-mono`}>
                           {daysLeft}
                         </span>
                         <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Days</span>
@@ -479,8 +447,8 @@ export default function Memories() {
 
                     {/* Date and Time block */}
                     <div className="mt-5 grid grid-cols-2 gap-3.5">
-                      <div className="bg-slate-50/50 border border-slate-100/60 p-3.5 rounded-2xl flex items-center gap-2.5">
-                        <div className={`w-9 h-9 rounded-xl bg-gradient-to-tr ${vibeInfo.color} flex items-center justify-center text-white shrink-0 shadow-sm`}>
+                      <div className="bg-white/40 backdrop-blur-md border border-white/60 p-4 rounded-2xl flex items-center gap-2.5 shadow-sm">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm border ${vibeInfo.bgLight}`}>
                           <CalendarIcon size={16} strokeWidth={2.5} />
                         </div>
                         <div className="min-w-0">
@@ -491,8 +459,8 @@ export default function Memories() {
                         </div>
                       </div>
 
-                      <div className="bg-slate-50/50 border border-slate-100/60 p-3.5 rounded-2xl flex items-center gap-2.5">
-                        <div className={`w-9 h-9 rounded-xl bg-gradient-to-tr ${vibeInfo.color} flex items-center justify-center text-white shrink-0 shadow-sm`}>
+                      <div className="bg-white/40 backdrop-blur-md border border-white/60 p-4 rounded-2xl flex items-center gap-2.5 shadow-sm">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm border ${vibeInfo.bgLight}`}>
                           <Clock size={16} strokeWidth={2.5} />
                         </div>
                         <div className="min-w-0">
@@ -504,22 +472,18 @@ export default function Memories() {
                       </div>
                     </div>
 
-                    {/* Dashed ticket separator line */}
-                    <div className="relative my-6">
-                      <div className="absolute -left-[37px] -top-3 w-6 h-6 rounded-full bg-gradient-to-tr from-[#E0F2FE] to-[#F0F9FF] border border-slate-200/40 z-10 shadow-inner" />
-                      <div className="absolute -right-[37px] -top-3 w-6 h-6 rounded-full bg-gradient-to-tr from-[#E0F7FA] to-[#F0F9FF] border border-slate-200/40 z-10 shadow-inner" />
-                      <div className="border-t border-dashed border-slate-200/80 w-full" />
-                    </div>
+                    {/* Sleek divider line */}
+                    <div className="my-5 border-t border-dashed border-slate-200/80 w-full" />
 
                     {/* Location & Details */}
                     {nextOuting.place && (
-                      <div className="flex items-start gap-3 bg-slate-50/40 border border-slate-100/40 p-4 rounded-2xl">
-                        <div className="w-8 h-8 rounded-xl bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center text-brand-cyan shrink-0 mt-0.5">
+                      <div className="flex items-start gap-3 bg-white/40 backdrop-blur-md border border-white/60 p-4 rounded-2xl shadow-sm">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 border ${vibeInfo.bgLight}`}>
                           <MapPin size={15} strokeWidth={2.5} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Destination</p>
-                          <p className="text-xs font-black text-slate-700 leading-snug mt-0.5 truncate">{nextOuting.place}</p>
+                          <p className="text-xs font-black text-slate-705 leading-snug mt-0.5 truncate">{nextOuting.place}</p>
                         </div>
                       </div>
                     )}
@@ -531,7 +495,7 @@ export default function Memories() {
                           href={nextOuting.location_url} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className={`flex-1 flex items-center justify-center gap-1.5 py-3.5 bg-gradient-to-r ${vibeInfo.color} text-white rounded-2xl font-black text-[10px] uppercase tracking-wider shadow-md active:scale-[0.98] transition-all cursor-pointer`}
+                          className={`flex-1 flex items-center justify-center gap-1.5 py-3 bg-gradient-to-r ${vibeInfo.color} text-white rounded-2xl font-black text-[10px] uppercase tracking-wider shadow-md hover:shadow-lg hover:scale-[1.01] active:scale-[0.98] transition-all cursor-pointer`}
                         >
                           <MapPin size={12} strokeWidth={2.5} />
                           Location Map
@@ -542,7 +506,7 @@ export default function Memories() {
                           href={nextOuting.page_url} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="flex-1 flex items-center justify-center gap-1.5 py-3.5 bg-slate-100 hover:bg-slate-150 text-slate-600 border border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer"
+                          className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-white/60 hover:bg-white text-slate-655 border border-slate-200/60 rounded-2xl font-black text-[10px] uppercase tracking-wider active:scale-[0.98] hover:scale-[1.01] transition-all cursor-pointer shadow-sm"
                         >
                           <Globe size={12} strokeWidth={2.5} />
                           Page details
@@ -550,7 +514,7 @@ export default function Memories() {
                       )}
                       <button 
                         onClick={() => setDeleteConfirmId(nextOuting.id)}
-                        className="px-4 py-3.5 bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-100 rounded-2xl font-black text-[10px] uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                        className="px-4 py-3 bg-rose-500/10 hover:bg-rose-500/15 text-rose-600 border border-rose-500/20 rounded-2xl font-black text-[10px] uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5"
                         title="Delete Outing"
                       >
                         <Trash2 size={13} strokeWidth={2.5} />
@@ -671,7 +635,8 @@ export default function Memories() {
       {/* Floating Add Trigger based on Active Tab */}
       {activeTab === 'scrapbook' ? (
         isAddingMemory ? (
-          <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all">
+          createPortal(
+            <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all">
             <div className="bg-white rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-slide-up border border-slate-100 max-h-[85vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-5">
                 <h3 className="font-extrabold text-xl text-brand-dark">Capture a Memory</h3>
@@ -767,59 +732,82 @@ export default function Memories() {
                   </div>
 
                   {uploadMode === 'file' ? (
-                    <div className="relative">
-                      {!photoPreview ? (
-                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-200 bg-slate-50/50 hover:bg-slate-50 rounded-2xl cursor-pointer transition-all hover:border-brand-cyan group">
-                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                            <Upload className="w-7 h-7 text-slate-400 group-hover:text-brand-cyan transition-colors mb-2" />
-                            <p className="text-xs font-bold text-slate-500 group-hover:text-brand-cyan transition-colors">Click to upload from Album</p>
-                            <p className="text-[10px] text-slate-400 mt-1">PNG, JPG up to 5MB</p>
-                          </div>
-                          <input type="file" accept="image/*" className="hidden" onChange={handlePhotoFileChange} />
-                        </label>
-                      ) : (
-                        <div className="relative rounded-2xl overflow-hidden border border-slate-100 shadow-soft">
-                          <img src={photoPreview} className="w-full h-32 object-cover" alt="Preview" />
-                          <button
-                            type="button"
-                            onClick={handleClearPhoto}
-                            className="absolute top-2 right-2 w-7 h-7 bg-brand-dark/70 text-white rounded-full flex items-center justify-center hover:bg-brand-dark transition-colors"
-                          >
-                            <X size={14} />
-                          </button>
+                    <div className="space-y-3">
+                      {photoPreviews.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2">
+                          {photoPreviews.map((preview, pidx) => (
+                            <div key={pidx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-100 shadow-sm">
+                              <img src={preview} className="w-full h-full object-cover" alt="Preview" />
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePhotoFile(pidx)}
+                                className="absolute top-1 right-1 w-5 h-5 bg-black/60 text-white rounded-full flex items-center justify-center hover:bg-black transition-colors"
+                              >
+                                <X size={10} />
+                              </button>
+                            </div>
+                          ))}
                         </div>
                       )}
+                      
+                      <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-200 bg-slate-50/50 hover:bg-slate-50 rounded-2xl cursor-pointer transition-all hover:border-brand-cyan group animate-fade-in">
+                        <div className="flex flex-col items-center justify-center py-4">
+                          <Upload className="w-6 h-6 text-slate-400 group-hover:text-brand-cyan transition-colors mb-1" />
+                          <p className="text-xs font-bold text-slate-500 group-hover:text-brand-cyan transition-colors">
+                            {photoPreviews.length > 0 ? "Add more photos" : "Upload photos from Album"}
+                          </p>
+                          <p className="text-[9px] text-slate-400 mt-0.5">PNG, JPG up to 5MB (multiple allowed)</p>
+                        </div>
+                        <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoFileChange} />
+                      </label>
                     </div>
                   ) : (
-                    <div className="relative">
-                      <input
-                        type="url"
-                        placeholder="https://images.unsplash.com/photo-..."
-                        value={photoUrl}
-                        onChange={(e) => setPhotoUrl(e.target.value)}
-                        className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:border-brand-cyan focus:outline-none font-semibold text-brand-dark text-sm"
-                      />
-                      {photoUrl && (
+                    <div className="space-y-3">
+                      {urlList.length > 0 && (
+                        <div className="space-y-1.5 max-h-24 overflow-y-auto pr-1">
+                          {urlList.map((url, uidx) => (
+                            <div key={uidx} className="flex items-center justify-between bg-slate-50 border border-slate-155 rounded-xl px-3 py-1.5 text-[10px] text-slate-650">
+                              <span className="truncate flex-1 font-mono pr-2">{url}</span>
+                              <button 
+                                type="button" 
+                                onClick={() => handleRemoveUrl(uidx)} 
+                                className="text-rose-500 hover:text-rose-700 shrink-0 font-bold"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          placeholder="https://images.unsplash.com/photo-..."
+                          value={inputUrl}
+                          onChange={(e) => setInputUrl(e.target.value)}
+                          className="flex-1 px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:border-brand-cyan focus:outline-none font-semibold text-brand-dark text-sm"
+                        />
                         <button
                           type="button"
-                          onClick={handleClearPhoto}
-                          className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600"
+                          onClick={handleAddUrl}
+                          className="px-4 bg-brand-cyan/10 hover:bg-brand-cyan/20 border border-brand-cyan/20 text-brand-cyan font-black text-xs uppercase tracking-wider rounded-2xl active-pop shrink-0"
                         >
-                          Clear
+                          Add URL
                         </button>
-                      )}
+                      </div>
                     </div>
                   )}
                 </div>
 
                 {/* Real-time Polaroid Live Preview */}
-                {(photoPreview || photoUrl || title || note) && (
+                {(photoPreviews.length > 0 || urlList.length > 0 || title || note) && (
                   <div className="pt-2 flex flex-col items-center">
                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-2">Polaroid Preview</span>
                     <div className="bg-white border border-slate-200 p-3 pb-6 rounded-md shadow-lg max-w-[180px] w-full transform rotate-1 border-b-[12px] border-b-slate-50">
                       <div className="aspect-square bg-slate-100 rounded overflow-hidden relative shadow-inner mb-3">
-                        {photoPreview || photoUrl ? (
-                          <img src={photoPreview || photoUrl} className="w-full h-full object-cover" alt="Polaroid preview" />
+                        {photoPreviews.length > 0 || urlList.length > 0 ? (
+                          <img src={photoPreviews[0] || urlList[0]} className="w-full h-full object-cover animate-fade-in" alt="Polaroid preview" />
                         ) : (
                           <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
                             <Camera size={24} />
@@ -858,8 +846,10 @@ export default function Memories() {
                 </button>
               </form>
             </div>
-          </div>
-        ) : (
+          </div>,
+          document.body
+        )
+      ) : (
           <button
             onClick={() => setIsAddingMemory(true)}
             className="fixed bottom-24 right-8 w-14 h-14 bg-gradient-to-tr from-brand-cyan to-teal-400 text-white rounded-full flex items-center justify-center shadow-xl shadow-brand-cyan/30 hover:scale-110 active:scale-95 transition-transform z-40 border border-white/20 active-pop"
@@ -868,7 +858,8 @@ export default function Memories() {
           </button>
         )
       ) : isAddingOuting ? (
-        <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all">
+        createPortal(
+          <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all">
           <div className="bg-white rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-slide-up border border-slate-100 max-h-[85vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-5">
               <h3 className="font-extrabold text-xl text-brand-dark">Plan an Outing</h3>
@@ -968,8 +959,9 @@ export default function Memories() {
               </button>
             </form>
           </div>
-        </div>
-      ) : (
+        </div>,
+        document.body
+      ) ) : (
         <button
           onClick={() => setIsAddingOuting(true)}
           className="fixed bottom-24 right-8 w-14 h-14 bg-gradient-to-tr from-brand-amber to-amber-400 text-white rounded-full flex items-center justify-center shadow-xl shadow-brand-amber/30 hover:scale-110 active:scale-95 transition-transform z-40 border border-white/20 active-pop"
@@ -980,80 +972,12 @@ export default function Memories() {
 
       {/* Scrapbook Polaroid Lightbox Modal */}
       {selectedMemory && (
-        <div 
-          onClick={() => setSelectedMemory(null)}
-          className="fixed inset-0 bg-brand-dark/70 backdrop-blur-md z-50 flex items-center justify-center p-6 animate-fade-in cursor-zoom-out"
-        >
-          <div 
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white p-5 pb-8 rounded-2xl shadow-2xl max-w-sm w-full animate-scale-in border border-slate-100 cursor-default"
-          >
-            {/* Polaroid Photo Frame */}
-            <div className="relative aspect-square rounded-xl overflow-hidden mb-5 border border-slate-150 shadow-inner bg-slate-50">
-              {selectedMemory.photo ? (
-                <img src={selectedMemory.photo} alt={selectedMemory.title} className="w-full h-full object-cover animate-fade-in" />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-slate-350">
-                  <Camera size={48} className="text-slate-300" />
-                  <span className="text-[10px] font-bold text-slate-400 mt-2">No Photo Attached</span>
-                </div>
-              )}
-              {selectedMemory.mood_emoji && (
-                <div className="absolute top-3.5 right-3.5 w-9 h-9 rounded-full bg-white/95 backdrop-blur-sm flex items-center justify-center shadow-md border border-slate-100">
-                  {getMoodIcon(selectedMemory.mood_emoji)}
-                </div>
-              )}
-            </div>
-
-            {/* Description & Metadata */}
-            <div className="px-1">
-              <div className="flex justify-between items-center">
-                <span className="text-[10px] font-black text-brand-cyan uppercase tracking-wider bg-brand-cyan/5 px-2.5 py-1 rounded-md border border-brand-cyan/15">
-                  {new Date(selectedMemory.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide flex items-center gap-1">
-                  <User size={10} className="text-slate-350" />
-                  By {selectedMemory.created_by === 'you' ? 'You' : partnerName}
-                </span>
-              </div>
-              
-              <h4 className="font-extrabold text-xl text-brand-dark mt-4 leading-tight">
-                {selectedMemory.title}
-              </h4>
-              <p className="text-xs text-slate-500 mt-3 leading-relaxed font-bold bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50 shadow-inner whitespace-pre-wrap">
-                {selectedMemory.note}
-              </p>
-
-              {/* Tags */}
-              {selectedMemory.tags && selectedMemory.tags.length > 0 && (
-                <div className="flex gap-1.5 mt-4.5 flex-wrap">
-                  {selectedMemory.tags.map((tag: string) => (
-                    <span key={tag} className="text-[9px] font-extrabold text-slate-400 bg-slate-50 border border-slate-100/50 rounded-md px-2 py-0.5 select-none">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Actions Row (Close & Delete) */}
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setSelectedMemory(null)}
-                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-650 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors active-pop"
-              >
-                Close Memory
-              </button>
-              <button
-                onClick={() => setDeleteConfirmId(selectedMemory.id)}
-                className="px-4 py-3 bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-100 rounded-xl font-bold transition-all active-pop"
-                title="Delete Memory"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          </div>
-        </div>
+        <Lightbox 
+          memory={selectedMemory}
+          onClose={() => setSelectedMemory(null)}
+          onDelete={() => setDeleteConfirmId(selectedMemory.id)}
+          partnerName={partnerName}
+        />
       )}
 
       <ConfirmDialog
@@ -1072,4 +996,244 @@ export default function Memories() {
       />
     </div>
   )
+}
+
+// ─── Subcomponents ────────────────────────────────────────────────────────────
+
+function PolaroidCard({ item, index, onSelect }: {
+  item: any
+  index: number
+  onSelect: () => void
+}) {
+  const tiltClass = index % 2 === 0 ? 'rotate-1 hover:rotate-0' : '-rotate-1 hover:rotate-0'
+  const photos = item.photos || (item.photo ? [item.photo] : [])
+  const [activeIdx, setActiveIdx] = useState(0)
+
+  const handlePrev = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setActiveIdx((prev) => (prev > 0 ? prev - 1 : photos.length - 1))
+  }
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setActiveIdx((prev) => (prev < photos.length - 1 ? prev + 1 : 0))
+  }
+
+  return (
+    <div 
+      onClick={onSelect}
+      className={`relative bg-[#FAF9F5] border border-slate-200/50 p-4 pb-6 rounded-md shadow-[0_10px_25px_rgba(0,0,0,0.05)] hover:scale-[1.015] hover:shadow-[0_16px_35px_rgba(0,188,212,0.08)] cursor-pointer transition-all duration-300 transform hover:-translate-y-0.5 hover:border-brand-cyan/40 ${tiltClass}`}
+    >
+      {/* Decorative Washi Tape */}
+      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 w-14 h-5 bg-amber-100/50 backdrop-blur-[1px] border border-amber-200/10 rotate-[-3deg] shadow-[0_1px_2px_rgba(0,0,0,0.03)] z-10 pointer-events-none" />
+
+      {/* Image slot */}
+      {photos.length > 0 ? (
+        <div className="relative aspect-square rounded-lg overflow-hidden mb-4 border border-slate-200/50 bg-slate-100/50 shadow-inner group">
+          <img 
+            src={photos[activeIdx]} 
+            alt={`${item.title} - ${activeIdx + 1}`} 
+            className="w-full h-full object-cover transition-opacity duration-300" 
+          />
+          
+          {/* Mood Emoji Badge */}
+          <div className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow">
+            {getMoodIcon(item.mood_emoji)}
+          </div>
+
+          {/* Carousel Controls */}
+          {photos.length > 1 && (
+            <>
+              <button 
+                onClick={handlePrev}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/80 hover:bg-white text-slate-700 flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity active:scale-90"
+              >
+                <ChevronLeft size={16} strokeWidth={2.5} />
+              </button>
+              
+              <button 
+                onClick={handleNext}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/80 hover:bg-white text-slate-700 flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity active:scale-90"
+              >
+                <ChevronRight size={16} strokeWidth={2.5} />
+              </button>
+
+              <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-black/45 backdrop-blur-sm text-[9px] font-black text-white select-none">
+                {activeIdx + 1} / {photos.length}
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="aspect-square rounded-lg bg-slate-100/50 border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-350 mb-4 select-none">
+          <Camera size={24} className="text-slate-300" />
+          <span className="text-[10px] font-bold text-slate-400 mt-2">No Photo Attached</span>
+        </div>
+      )}
+
+      {/* Caption strip */}
+      <div className="px-1 text-center">
+        <span className="text-[9px] font-black text-brand-cyan uppercase tracking-widest bg-brand-cyan/5 px-2 py-0.5 rounded border border-brand-cyan/10">
+          {new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+        </span>
+        <h4 className="text-slate-700 font-extrabold text-base mt-2.5 font-serif italic tracking-tight truncate leading-tight">
+          {item.title}
+        </h4>
+        {item.note && (
+          <p className="text-[11px] text-slate-500 font-bold mt-1.5 leading-relaxed line-clamp-2">
+            {item.note}
+          </p>
+        )}
+
+        {/* Tags */}
+        {item.tags && item.tags.length > 0 && (
+          <div className="flex gap-1 justify-center mt-3 flex-wrap">
+            {item.tags.map((tag: string) => (
+              <span key={tag} className="text-[8px] font-extrabold text-slate-450 bg-slate-100 border border-slate-200/40 rounded px-1.5 py-0.5 select-none">
+                #{tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Lightbox({ memory, onClose, onDelete, partnerName }: {
+  memory: any
+  onClose: () => void
+  onDelete: () => void
+  partnerName: string
+}) {
+  const photos = memory.photos || (memory.photo ? [memory.photo] : [])
+  const [activeIdx, setActiveIdx] = useState(0)
+
+  return createPortal(
+    <div 
+      onClick={onClose}
+      className="fixed inset-0 bg-brand-dark/75 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fade-in cursor-zoom-out"
+    >
+      <div 
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#FAF9F5] p-5 pb-8 rounded-2xl shadow-2xl max-w-sm w-full animate-scale-in border border-slate-100 cursor-default relative overflow-hidden"
+      >
+        {/* Decorative Washi Tape */}
+        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 w-16 h-5 bg-amber-100/50 backdrop-blur-[1px] border border-amber-200/10 rotate-[-1deg] shadow-[0_1px_2px_rgba(0,0,0,0.03)] z-10 pointer-events-none" />
+
+        {/* Polaroid Photo Frame */}
+        <div className="relative aspect-square rounded-xl overflow-hidden mb-5 border border-slate-150 shadow-inner bg-slate-100 group mt-2">
+          {photos.length > 0 ? (
+            <>
+              <img src={photos[activeIdx]} alt={`${memory.title} - ${activeIdx + 1}`} className="w-full h-full object-cover animate-fade-in" />
+              
+              {photos.length > 1 && (
+                <>
+                  <button 
+                    onClick={() => setActiveIdx((prev) => (prev > 0 ? prev - 1 : photos.length - 1))}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-slate-700 flex items-center justify-center shadow-md active:scale-90 transition-transform"
+                  >
+                    <ChevronLeft size={18} strokeWidth={2.5} />
+                  </button>
+                  
+                  <button 
+                    onClick={() => setActiveIdx((prev) => (prev < photos.length - 1 ? prev + 1 : 0))}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-slate-700 flex items-center justify-center shadow-md active:scale-90 transition-transform"
+                  >
+                    <ChevronRight size={18} strokeWidth={2.5} />
+                  </button>
+
+                  <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-sm text-[10px] font-black text-white select-none">
+                    {activeIdx + 1} / {photos.length}
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center text-slate-350">
+              <Camera size={48} className="text-slate-300" />
+              <span className="text-[10px] font-bold text-slate-400 mt-2">No Photo Attached</span>
+            </div>
+          )}
+          
+          {memory.mood_emoji && (
+            <div className="absolute top-3.5 right-3.5 w-9 h-9 rounded-full bg-white/95 backdrop-blur-sm flex items-center justify-center shadow-md border border-slate-100">
+              {getMoodIcon(memory.mood_emoji)}
+            </div>
+          )}
+        </div>
+
+        {/* Description & Metadata */}
+        <div className="px-1">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] font-black text-brand-cyan uppercase tracking-wider bg-brand-cyan/5 px-2.5 py-1 rounded-md border border-brand-cyan/15">
+              {new Date(memory.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
+            <span className="text-[10px] font-black text-slate-450 uppercase tracking-wide flex items-center gap-1">
+              <User size={10} className="text-slate-350" />
+              By {memory.created_by === 'you' ? 'You' : partnerName}
+            </span>
+          </div>
+          
+          <h4 className="font-serif italic tracking-tight font-extrabold text-xl text-slate-800 mt-4 leading-tight">
+            {memory.title}
+          </h4>
+          
+          {memory.note && (
+            <p className="text-xs text-slate-600 mt-3 leading-relaxed font-bold bg-[#FAF9F5]/70 p-4 rounded-2xl border border-slate-200/50 shadow-inner whitespace-pre-wrap font-sans max-h-40 overflow-y-auto">
+              {memory.note}
+            </p>
+          )}
+
+          {/* Tags */}
+          {memory.tags && memory.tags.length > 0 && (
+            <div className="flex gap-1.5 mt-4.5 flex-wrap">
+              {memory.tags.map((tag: string) => (
+                <span key={tag} className="text-[9px] font-extrabold text-slate-400 bg-slate-50 border border-slate-100/50 rounded-md px-2 py-0.5 select-none">
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Actions Row */}
+        <div className="flex gap-3 mt-6 font-sans">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-650 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors active-pop"
+          >
+            Close Memory
+          </button>
+          <button
+            onClick={onDelete}
+            className="px-4 py-3 bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-100 rounded-xl font-bold transition-all active-pop"
+            title="Delete Memory"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+const getMoodIcon = (mood: string) => {
+  switch (mood) {
+    case 'happy':
+      return <Smile className="text-emerald-500" size={16} />
+    case 'loved':
+      return <Heart className="text-rose-500 fill-rose-500" size={16} />
+    case 'funny':
+      return <Smile className="text-amber-500" size={16} />
+    case 'excited':
+      return <Zap className="text-purple-500" size={16} />
+    case 'hungry':
+      return <Pizza className="text-orange-500" size={16} />
+    case 'chill':
+      return <Coffee className="text-blue-500" size={16} />
+    default:
+      return <Smile className="text-slate-400" size={16} />
+  }
 }

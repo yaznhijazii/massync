@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useAppStore } from '../store/useAppStore'
 import type { PrayerLog } from '../store/useAppStore'
 import { Book, Check, Leaf, Sunrise, Sunset, Moon, Heart, BookOpen, Sun, SunDim, Play, Pause, Radio, Shuffle, Star } from 'lucide-react'
@@ -836,7 +837,7 @@ export default function Islamic() {
           </section>
 
           {/* Log page dialog */}
-          {isLoggingQuran && (
+          {isLoggingQuran && createPortal(
             <div className="fixed inset-0 bg-brand-dark/45 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-slide-up border border-slate-100">
                 <div className="flex justify-between items-center mb-5">
@@ -870,11 +871,12 @@ export default function Islamic() {
                   </button>
                 </form>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
 
           {/* Edit target dialog */}
-          {isEditingTarget && (
+          {isEditingTarget && createPortal(
             <div className="fixed inset-0 bg-brand-dark/45 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-slide-up border border-slate-100">
                 <div className="flex justify-between items-center mb-5">
@@ -906,7 +908,8 @@ export default function Islamic() {
                   </button>
                 </form>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       )}

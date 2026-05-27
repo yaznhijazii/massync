@@ -52,7 +52,8 @@ export interface Task {
   pair_id: string
   created_by: 'you' | 'partner'
   title: string
-  category: 'personal' | 'shared'
+  description?: string
+  category: 'personal' | 'shared' | 'challenge'
   recurrence: string
   is_done: boolean
   done_by?: 'you' | 'partner'
@@ -77,6 +78,7 @@ export interface Memory {
   mood_emoji: string
   tags: string[]
   photo?: string
+  photos?: string[]
   type: 'memory' | 'outing' | 'gift'
   time?: string
   place?: string
@@ -710,6 +712,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           pair_id: pairId,
           created_by: userId,
           title: task.title,
+          description: task.description || null,
           category: task.category,
           recurrence: task.recurrence,
           date: task.date,
@@ -990,6 +993,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           mood_emoji: memory.mood_emoji,
           tags: memory.tags,
           photo: memory.photo,
+          photos: memory.photos || [],
           type: 'memory'
         })
       })
@@ -2261,6 +2265,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       onlineUsers: [],
       partnerLastSeen: null,
       tasks: [],
+      taskCompletions: [],
       memories: [],
       songs: [],
       hobbies: [],
@@ -2539,6 +2544,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           id: t.id,
           pair_id: t.pair_id,
           title: t.title,
+          description: t.description || undefined,
           category: t.category,
           recurrence: t.recurrence,
           is_done: t.is_done,
@@ -2601,22 +2607,26 @@ export const useAppStore = create<AppState>((set, get) => ({
       })
       if (res.ok) {
         const data = await res.json()
-        const mappedMemories: Memory[] = data.map((m: any) => ({
-          id: m.id,
-          pair_id: m.pair_id,
-          created_by: m.created_by === userId ? 'you' : 'partner',
-          date: m.date,
-          title: m.title,
-          note: m.note,
-          mood_emoji: m.mood_emoji,
-          tags: m.tags || [],
-          photo: m.photo,
-          type: m.type,
-          time: m.time,
-          place: m.place,
-          vibe: m.vibe,
-          page_url: m.page_url
-        }))
+        const mappedMemories: Memory[] = data.map((m: any) => {
+          const photos = m.photos || (m.photo ? [m.photo] : [])
+          return {
+            id: m.id,
+            pair_id: m.pair_id,
+            created_by: m.created_by === userId ? 'you' : 'partner',
+            date: m.date,
+            title: m.title,
+            note: m.note,
+            mood_emoji: m.mood_emoji,
+            tags: m.tags || [],
+            photo: m.photo,
+            photos: photos,
+            type: m.type,
+            time: m.time,
+            place: m.place,
+            vibe: m.vibe,
+            page_url: m.page_url
+          }
+        })
         set({ memories: mappedMemories })
       }
     } catch (e) {

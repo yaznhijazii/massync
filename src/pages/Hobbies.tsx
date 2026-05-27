@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useAppStore } from '../store/useAppStore'
 import { Play, Pause, Square, Plus, Search, Radio, Music, Film, Check, Trash2, Smile, BookOpen, Sprout, Target, Star } from 'lucide-react'
 
@@ -219,10 +220,6 @@ export default function Hobbies() {
       {/* Header */}
       <header className="flex justify-between items-center mb-6">
         <div>
-          <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 bg-rose-500/10 border border-rose-500/20 px-3.5 py-1.5 rounded-full select-none inline-flex items-center gap-1.5">
-            <span>Grow & Play Hub</span>
-            <Target size={11} className="text-rose-500" />
-          </span>
           <h1 className="text-4xl font-extrabold text-brand-dark mt-3.5 tracking-tight">
             Hobbies & Fun
           </h1>
@@ -774,7 +771,7 @@ export default function Hobbies() {
       )}
 
       {/* Floating Modal: Add Shared Hobby */}
-      {isAddingHobby && (
+      {isAddingHobby && createPortal(
         <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 max-h-[100vh] overflow-y-auto">
           <div className="bg-white rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-slide-up border border-slate-100 max-h-[85vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-5">
@@ -856,11 +853,12 @@ export default function Hobbies() {
               </button>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Floating Modal: Add Watchlist / Bucket list item */}
-      {isAddingWatch && (
+      {isAddingWatch && createPortal(
         <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-slide-up border border-slate-100">
             <div className="flex justify-between items-center mb-5">
@@ -921,11 +919,12 @@ export default function Hobbies() {
               </button>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Floating Modal: Gift a Song */}
-      {isGiftingSong && (
+      {isGiftingSong && createPortal(
         <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[32px] w-full max-w-md p-6 shadow-2xl animate-slide-up border border-slate-100">
             <div className="flex justify-between items-center mb-5">
@@ -984,7 +983,8 @@ export default function Hobbies() {
               </button>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

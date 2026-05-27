@@ -79,13 +79,13 @@ function App() {
         Using a soft sky-blue gradient background so the white rounded cards with drop shadows 
         float beautifully and achieve the true visual depth of a modern friendship app.
       */}
-      <div className="min-h-screen max-w-md mx-auto relative bg-gradient-to-tr from-[#E0F2FE] via-[#F0F9FF] to-[#E0F7FA] shadow-2xl border-x border-slate-100/55 flex flex-col justify-between overflow-x-hidden selection:bg-brand-purple selection:text-white">
+      <div className="min-h-screen max-w-md mx-auto relative z-0 bg-gradient-to-tr from-[#E0F2FE] via-[#F0F9FF] to-[#E0F7FA] shadow-2xl border-x border-slate-100/55 flex flex-col justify-between overflow-x-hidden selection:bg-brand-purple selection:text-white">
         
         {/* Blurry premium background blobs for high-fidelity 3D depth */}
-        <div className="absolute top-[-10%] right-[-15%] w-72 h-72 rounded-full bg-brand-cyan/25 blur-3xl pointer-events-none animate-blob-1 z-0" />
-        <div className="absolute bottom-[20%] left-[-15%] w-80 h-80 rounded-full bg-brand-purple/20 blur-3xl pointer-events-none animate-blob-2 z-0" />
+        <div className="absolute top-[-10%] right-[-15%] w-72 h-72 rounded-full bg-brand-cyan/25 blur-3xl pointer-events-none animate-blob-1 z-[-1]" />
+        <div className="absolute bottom-[20%] left-[-15%] w-80 h-80 rounded-full bg-brand-purple/20 blur-3xl pointer-events-none animate-blob-2 z-[-1]" />
 
-        <div className="flex-1 pb-24 relative z-10">
+        <div className="flex-1 pb-24 relative">
           <Routes>
             {user ? (
               <>

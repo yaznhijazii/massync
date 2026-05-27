@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useAppStore } from '../store/useAppStore'
 import type { Task, TaskCompletion } from '../store/useAppStore'
 import {
   Check, Plus, Trash2, Users, Lock, Flame,
-  RefreshCw, ChevronDown, X, Star, Zap, User, Bell
+  RefreshCw, ChevronDown, X, Star, Zap, User, Bell, Trophy
 } from 'lucide-react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 
@@ -82,6 +83,89 @@ function RecurringDotsSection({
   const partnerCount = partnerCompletions.length
   const myDone       = myCount >= target
   const partnerDone  = partnerCount >= target
+
+  // Custom rendering for challenges
+  if (task.category === 'challenge') {
+    const isMyChallenge = task.created_by === 'partner' // Assigned to me
+    if (isMyChallenge) {
+      return (
+        <div className="mt-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider w-[28px] shrink-0">You</span>
+            <div className="flex items-center gap-1.5 flex-1">
+              {Array.from({ length: target }).map((_, i) => {
+                const filled = i < myCount
+                const completion = myCompletions[i]
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      if (filled && completion) {
+                        onRemove(completion.id)
+                      } else if (!filled && myCount <= i) {
+                        onAdd()
+                      }
+                    }}
+                    className={`transition-all duration-200 active-pop ${filled ? 'scale-105' : 'hover:scale-105'}`}
+                    title={filled ? 'Tap to undo' : 'Mark done'}
+                  >
+                    {filled ? (
+                      <span className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 border-2 border-emerald-300 flex items-center justify-center shadow-[0_2px_8px_rgba(16,185,129,0.4)]">
+                        <Check size={12} strokeWidth={3.5} className="text-white" />
+                      </span>
+                    ) : (
+                      <span className="w-7 h-7 rounded-full border-2 border-dashed border-slate-200 bg-white flex items-center justify-center hover:border-emerald-400 hover:bg-emerald-50 transition-colors">
+                        <span className="w-2 h-2 rounded-full bg-slate-200" />
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+              {myDone ? (
+                <span className="ml-1 text-[10px] font-black text-emerald-600 animate-fade-in">✓ Done!</span>
+              ) : (
+                <span className="ml-1 text-[10px] font-black text-slate-400 tabular-nums">{myCount}/{target}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )
+    } else {
+      // Assigned to partner (read-only for me)
+      return (
+        <div className="mt-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider w-[28px] shrink-0 truncate">
+              {(partnerName || 'Partner').split(' ')[0].slice(0, 3)}
+            </span>
+            <div className="flex items-center gap-1.5 flex-1">
+              {Array.from({ length: target }).map((_, i) => {
+                const filled = i < partnerCount
+                return (
+                  <span key={i} className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                    filled
+                      ? 'bg-gradient-to-br from-brand-cyan to-teal-500 border-2 border-brand-cyan/50 shadow-[0_2px_8px_rgba(0,188,212,0.35)]'
+                      : 'border-2 border-dashed border-slate-200 bg-white'
+                  }`}>
+                    {filled
+                      ? <Check size={12} strokeWidth={3.5} className="text-white" />
+                      : <span className="w-2 h-2 rounded-full bg-slate-200" />
+                    }
+                  </span>
+                )
+              })}
+              {partnerDone ? (
+                <span className="ml-1 text-[10px] font-black text-brand-cyan animate-fade-in">✓ Done!</span>
+              ) : (
+                <span className="ml-1 text-[10px] font-black text-slate-400 tabular-nums">{partnerCount}/{target}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )
+    }
+  }
 
   return (
     <div className="mt-3 space-y-2">
@@ -167,6 +251,7 @@ function RecurringDotsSection({
 const CATEGORY_OPTIONS: Option[] = [
   { value: 'shared', label: '🤝 Shared' },
   { value: 'personal', label: '🔒 Personal' },
+  { value: 'challenge', label: '🎯 Challenge' },
 ]
 const RECURRENCE_OPTIONS: Option[] = [
   { value: 'none', label: 'One-off' },
@@ -190,7 +275,7 @@ export default function Tasks() {
 
   const [loading, setLoading]               = useState(true)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
-  const [activeTab, setActiveTab]           = useState<'shared' | 'personal'>('shared')
+  const [activeTab, setActiveTab]           = useState<'shared' | 'personal' | 'challenge'>('shared')
   const [isAdding, setIsAdding]             = useState(false)
 
   const [notifPermission, setNotifPermission] = useState<string>(
@@ -205,9 +290,10 @@ export default function Tasks() {
   }
 
   // Form
-  const [title, setTitle]         = useState('')
-  const [category, setCategory]   = useState<'shared' | 'personal'>('shared')
-  const [recurrence, setRecurrence] = useState('none')
+  const [title, setTitle]             = useState('')
+  const [description, setDescription] = useState('')
+  const [category, setCategory]       = useState<'shared' | 'personal' | 'challenge'>('shared')
+  const [recurrence, setRecurrence]   = useState('none')
 
   useEffect(() => {
     setLoading(true)
@@ -217,31 +303,50 @@ export default function Tasks() {
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
-    addTask({ title, category, recurrence, date: new Date().toISOString().split('T')[0] })
-    setTitle(''); setRecurrence('none'); setIsAdding(false)
+    addTask({ title, description, category, recurrence, date: new Date().toISOString().split('T')[0] })
+    setTitle(''); setDescription(''); setRecurrence('none'); setIsAdding(false)
   }
 
   // ── Per-task completion helpers ────────────────────────────────────────────
   const myCompletionsFor = (taskId: string) =>
-    taskCompletions.filter(c => c.task_id === taskId && c.completed_by === 'you')
+    (taskCompletions || []).filter(c => c.task_id === taskId && c.completed_by === 'you')
   const partnerCompletionsFor = (taskId: string) =>
-    taskCompletions.filter(c => c.task_id === taskId && c.completed_by === 'partner')
+    (taskCompletions || []).filter(c => c.task_id === taskId && c.completed_by === 'partner')
 
   // Is a task "done" this week?
   const isEffectivelyDone = (t: Task) => {
+    if (t.category === 'challenge') {
+      if (t.created_by === 'you') return false // assigned to partner, not me
+    }
     const target = getWeeklyTarget(t.recurrence)
     if (target > 0) return myCompletionsFor(t.id).length >= target
     return t.is_done
   }
 
   const isPartnerEffectivelyDone = (t: Task) => {
+    if (t.category === 'challenge') {
+      if (t.created_by === 'partner') return false // assigned to me, not partner
+    }
     const target = getWeeklyTarget(t.recurrence)
     if (target > 0) return partnerCompletionsFor(t.id).length >= target
     return t.is_done
   }
 
-  const filteredTasks = tasks.filter(t => t.category === activeTab)
+  const filteredTasks = (tasks || []).filter(t => t.category === activeTab)
   const totalCount = filteredTasks.length
+
+  // Challenge-specific metrics
+  const receivedChallenges = (tasks || []).filter(t => t.category === 'challenge' && t.created_by === 'partner')
+  const totalReceived = receivedChallenges.length
+  const completedReceived = receivedChallenges.filter(t => isEffectivelyDone(t)).length
+  const receivedProgress = totalReceived > 0 ? Math.round((completedReceived / totalReceived) * 100) : 0
+  const receivedAllDone = totalReceived > 0 && completedReceived === totalReceived
+
+  const sentChallenges = (tasks || []).filter(t => t.category === 'challenge' && t.created_by === 'you')
+  const totalSent = sentChallenges.length
+  const completedSent = sentChallenges.filter(t => isPartnerEffectivelyDone(t)).length
+  const sentProgress = totalSent > 0 ? Math.round((completedSent / totalSent) * 100) : 0
+  const sentAllDone = totalSent > 0 && completedSent === totalSent
 
   // You
   const myCompletedCount = filteredTasks.filter(t => isEffectivelyDone(t)).length
@@ -258,7 +363,7 @@ export default function Tasks() {
 
   // Streak
   const calculateStreak = () => {
-    const shared = tasks.filter(t => t.category === 'shared')
+    const shared = (tasks || []).filter(t => t.category === 'shared')
     if (!shared.length) return 0
     const byDate: Record<string, Task[]> = {}
     shared.forEach(t => { (byDate[t.date] = byDate[t.date] || []).push(t) })
@@ -297,7 +402,7 @@ export default function Tasks() {
         <div className="relative z-10 flex items-start justify-between">
           <div>
 
-            <h1 className="text-[32px] font-black text-slate-800 tracking-tight leading-none">Daily Tasks</h1>
+            <h1 className="text-[32px] font-black text-slate-800 tracking-tight leading-none">Tasks</h1>
             <p className="text-[11px] font-bold text-slate-400 mt-1">
               {new Date().toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric' })}
             </p>
@@ -381,6 +486,64 @@ export default function Tasks() {
                 </p>
               )}
             </div>
+          ) : activeTab === 'challenge' ? (
+            <div className="space-y-3">
+              {/* Header / Title */}
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                  <Trophy size={11} className="text-amber-500 fill-amber-500/20" />
+                  Challenge Progress
+                </span>
+                {receivedAllDone && totalReceived > 0 && (
+                  <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
+                    <Star size={8} className="fill-emerald-500 text-emerald-500" /> All Done!
+                  </span>
+                )}
+              </div>
+
+              {/* Progress Bars */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Your Challenges */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px] font-bold">
+                    <span className="text-slate-600 truncate max-w-[70px]">For You</span>
+                    <span className="text-brand-purple font-black">{completedReceived}/{totalReceived}</span>
+                  </div>
+                  <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden relative shadow-inner">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        receivedAllDone
+                          ? 'bg-gradient-to-r from-emerald-400 to-teal-500'
+                          : 'bg-gradient-to-r from-brand-purple to-violet-500'
+                      }`}
+                      style={{ width: `${receivedProgress}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Partner's Challenges */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px] font-bold">
+                    <span className="text-slate-600 truncate max-w-[70px]">{partnerName?.split(' ')[0] || 'Partner'}</span>
+                    <span className="text-brand-cyan font-black">{completedSent}/{totalSent}</span>
+                  </div>
+                  <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden relative shadow-inner">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        sentAllDone
+                          ? 'bg-gradient-to-r from-emerald-400 to-teal-500'
+                          : 'bg-gradient-to-r from-brand-cyan to-teal-400'
+                      }`}
+                      style={{ width: `${sentProgress}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-[9px] text-slate-400 font-bold leading-normal">
+                Complete tasks assigned to you by your partner. Track what you've challenged them to do!
+              </p>
+            </div>
           ) : (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -438,20 +601,20 @@ export default function Tasks() {
       {/* ── Tab Switcher ─────────────────────────────────────────────────── */}
       <div className="px-5 mb-4">
         <div className="flex bg-white/70 backdrop-blur-md border border-white/70 rounded-[18px] p-1.5 gap-1.5 shadow-sm">
-          {(['shared', 'personal'] as const).map(tab => {
+          {(['shared', 'personal', 'challenge'] as const).map(tab => {
             const isActive = activeTab === tab
-            const count = tasks.filter(t => t.category === tab).length
+            const count = (tasks || []).filter(t => t.category === tab).length
             return (
-              <button key={tab} onClick={() => setActiveTab(tab)}
+              <button key={tab} onClick={() => { setActiveTab(tab); setCategory(tab); }}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-[13px] text-[11px] font-black uppercase tracking-wider transition-all duration-200 active-pop ${
                   isActive
                     ? 'bg-white shadow-sm border border-slate-100/80 text-slate-800'
                     : 'text-slate-400 hover:text-slate-600'
                 }`}>
-                {tab === 'shared'
-                  ? <Users size={12} className={isActive ? 'text-brand-cyan' : ''} />
-                  : <Lock size={12} className={isActive ? 'text-brand-purple' : ''} />}
-                {tab === 'shared' ? 'Shared' : 'Personal'}
+                {tab === 'shared' && <Users size={12} className={isActive ? 'text-brand-cyan' : ''} />}
+                {tab === 'personal' && <Lock size={12} className={isActive ? 'text-brand-purple' : ''} />}
+                {tab === 'challenge' && <Trophy size={12} className={`-mt-[2px] ${isActive ? 'text-amber-500' : 'text-slate-400'}`} />}
+                {tab === 'shared' ? 'Shared' : tab === 'personal' ? 'Personal' : 'Challenge'}
                 <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${
                   isActive ? 'bg-brand-purple/10 text-brand-purple' : 'bg-slate-200/60 text-slate-400'
                 }`}>{count}</span>
@@ -469,16 +632,30 @@ export default function Tasks() {
           ))
         ) : filteredTasks.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-16 text-center">
-            <div className="w-16 h-16 rounded-[22px] bg-brand-purple/8 border border-brand-purple/15 flex items-center justify-center">
-              <Zap className="text-brand-purple" size={24} />
+            <div className={`w-16 h-16 rounded-[22px] flex items-center justify-center border ${
+              activeTab === 'challenge'
+                ? 'bg-amber-500/8 border-amber-500/15'
+                : 'bg-brand-purple/8 border-brand-purple/15'
+            }`}>
+              {activeTab === 'challenge'
+                ? <Trophy className="text-amber-500 fill-amber-500/10" size={24} />
+                : <Zap className="text-brand-purple" size={24} />
+              }
             </div>
             <div>
-              <p className="font-black text-slate-700 text-sm">No {activeTab} tasks yet</p>
+              <p className="font-black text-slate-700 text-sm">
+                {activeTab === 'challenge' ? 'No active challenge' : `No ${activeTab} tasks yet`}
+              </p>
               <p className="text-xs text-slate-400 font-semibold mt-1">
-                {activeTab === 'shared' ? 'Add a shared goal to tackle together!' : 'Add a personal task for yourself'}
+                {activeTab === 'shared'
+                  ? 'Add a shared goal to tackle together!'
+                  : activeTab === 'challenge'
+                    ? 'Give your partner a challenge to complete!'
+                    : 'Add a personal task for yourself'
+                }
               </p>
             </div>
-            <button onClick={() => setIsAdding(true)}
+            <button onClick={() => { setCategory(activeTab); setIsAdding(true); }}
               className="mt-1 px-5 py-2.5 bg-brand-purple/10 text-brand-purple border border-brand-purple/20 rounded-full text-xs font-black uppercase tracking-wider active-pop">
               + Add First Task
             </button>
@@ -496,14 +673,20 @@ export default function Tasks() {
               ? 'from-emerald-400 to-teal-500'
               : task.category === 'shared'
                 ? 'from-brand-cyan to-violet-500'
-                : 'from-brand-purple to-pink-500'
+                : task.category === 'challenge'
+                  ? 'from-amber-400 to-orange-500'
+                  : 'from-brand-purple to-pink-500'
+
+            const isChallengeAssignedToPartner = task.category === 'challenge' && task.created_by === 'you'
 
             return (
               <div key={task.id}
                 className={`relative overflow-hidden rounded-[22px] border transition-all duration-300 group ${
                   done
                     ? 'bg-emerald-50/50 border-emerald-200/50 shadow-[0_4px_16px_rgba(16,185,129,0.07)]'
-                    : 'bg-white/85 backdrop-blur-sm border-white/70 shadow-[0_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_28px_rgba(0,0,0,0.09)] hover:scale-[1.005]'
+                    : task.category === 'challenge'
+                      ? 'bg-gradient-to-br from-amber-50/60 to-orange-50/30 border-amber-200/60 shadow-[0_4px_20px_rgba(245,158,11,0.06)] hover:shadow-[0_8px_28px_rgba(245,158,11,0.1)] hover:scale-[1.005]'
+                      : 'bg-white/85 backdrop-blur-sm border-white/70 shadow-[0_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_28px_rgba(0,0,0,0.09)] hover:scale-[1.005]'
                 }`}
               >
                 {/* Top gradient accent line */}
@@ -512,27 +695,62 @@ export default function Tasks() {
                 <div className="flex items-start gap-3 px-4 pt-5 pb-4">
                   {/* Checkbox / count bubble */}
                   {!isRecurring ? (
-                    <button onClick={() => toggleTask(task.id)}
-                      className={`w-8 h-8 rounded-xl border-2 flex items-center justify-center shrink-0 active-pop transition-all mt-0.5 ${
-                        done
-                          ? 'bg-emerald-500 border-emerald-400 shadow-[0_4px_12px_rgba(16,185,129,0.3)]'
-                          : 'border-slate-200 bg-white hover:border-brand-purple/50'
-                      }`}>
-                      {done
-                        ? <Check size={15} strokeWidth={3.5} className="text-white" />
-                        : <div className="w-2 h-2 rounded-full bg-slate-100 group-hover:bg-slate-200 transition-colors" />}
-                    </button>
+                    isChallengeAssignedToPartner ? (
+                      /* Challenge you gave to partner: disabled checkbox */
+                      <div
+                        className={`w-8 h-8 rounded-xl border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all cursor-not-allowed ${
+                          done
+                            ? 'bg-emerald-500/50 border-emerald-400/50'
+                            : 'border-amber-200 bg-amber-50/20'
+                        }`}
+                        title={`Waiting for ${(partnerName || 'partner').split(' ')[0]} to complete`}
+                      >
+                        {done ? (
+                          <Check size={15} strokeWidth={3.5} className="text-white/70" />
+                        ) : (
+                          <Trophy size={14} className="text-amber-500/60" />
+                        )}
+                      </div>
+                    ) : (
+                      /* Normal checkbox */
+                      <button onClick={() => toggleTask(task.id)}
+                        className={`w-8 h-8 rounded-xl border-2 flex items-center justify-center shrink-0 active-pop transition-all mt-0.5 ${
+                          done
+                            ? 'bg-emerald-500 border-emerald-400 shadow-[0_4px_12px_rgba(16,185,129,0.3)]'
+                            : task.category === 'challenge'
+                              ? 'border-amber-300 bg-white hover:border-amber-500/50'
+                              : 'border-slate-200 bg-white hover:border-brand-purple/50'
+                        }`}>
+                        {done ? (
+                          <Check size={15} strokeWidth={3.5} className="text-white" />
+                        ) : task.category === 'challenge' ? (
+                          <Trophy size={14} className="text-amber-500 group-hover:scale-110 transition-transform" />
+                        ) : (
+                          <div className="w-2 h-2 rounded-full bg-slate-100 group-hover:bg-slate-200 transition-colors" />
+                        )}
+                      </button>
+                    )
                   ) : (
                     /* Recurring — show numeric count bubble */
                     <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border-2 mt-0.5 transition-all ${
                       done
                         ? 'bg-emerald-500 border-emerald-400 shadow-[0_4px_12px_rgba(16,185,129,0.3)]'
-                        : 'bg-white border-slate-200'
+                        : task.category === 'challenge'
+                          ? 'border-amber-300 bg-white'
+                          : 'bg-white border-slate-200'
                     }`}>
-                      {done
-                        ? <Check size={15} strokeWidth={3.5} className="text-white" />
-                        : <span className="text-[11px] font-black text-brand-purple leading-none">{myC.length}</span>
-                      }
+                      {done ? (
+                        <Check size={15} strokeWidth={3.5} className="text-white" />
+                      ) : task.category === 'challenge' ? (
+                        <span className="text-[11px] font-black text-amber-600 leading-none flex items-center justify-center gap-0.5">
+                          {isChallengeAssignedToPartner ? partnerC.length : myC.length}
+                          <Trophy size={8} className="fill-amber-500/10" />
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-black text-brand-purple leading-none">
+                          {myC.length}
+                        </span>
+                      )}
                     </div>
                   )}
 
@@ -543,6 +761,13 @@ export default function Tasks() {
                     }`}>
                       {task.title}
                     </p>
+                    {task.description && (
+                      <p className={`text-[11px] mt-1 font-semibold leading-normal transition-all ${
+                        done ? 'line-through text-slate-400/70' : 'text-slate-500'
+                      }`}>
+                        {task.description}
+                      </p>
+                    )}
 
                     {/* Badges */}
                     <div className="flex items-center flex-wrap gap-1.5 mt-2">
@@ -556,6 +781,19 @@ export default function Tasks() {
                         <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-slate-400 bg-slate-100/70 border border-slate-200/50 px-2 py-0.5 rounded-lg select-none">
                           <User size={8} strokeWidth={2.5} />
                           {task.created_by === 'you' ? 'You' : (partnerName?.split(' ')[0] || 'Partner')}
+                        </span>
+                      )}
+                      {task.category === 'challenge' && (
+                        <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg select-none ${
+                          task.created_by === 'you'
+                            ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20'
+                            : 'bg-brand-purple/10 text-brand-purple border border-brand-purple/15'
+                        }`}>
+                          <Trophy size={8} className="fill-current" />
+                          {task.created_by === 'you'
+                            ? `Challenging ${partnerName?.split(' ')[0] || 'Partner'}`
+                            : `Challenge from ${partnerName?.split(' ')[0] || 'Partner'}`
+                          }
                         </span>
                       )}
                       {!isRecurring && done && task.done_by && (
@@ -618,9 +856,9 @@ export default function Tasks() {
       />
 
       {/* ── Add Task Modal ────────────────────────────────────────────────── */}
-      {isAdding && (
+      {isAdding && createPortal(
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-[32px] w-full max-w-md shadow-2xl border border-slate-100/80 animate-slide-up overflow-hidden">
+          <div className="bg-white rounded-[32px] w-full max-w-md shadow-2xl border border-slate-100/80 animate-slide-up">
             {/* Header */}
             <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100/60">
               <div>
@@ -647,6 +885,18 @@ export default function Tasks() {
                 />
               </div>
 
+              {/* Description */}
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Description (Optional)</label>
+                <textarea
+                  placeholder="Add details about this task…"
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                  rows={2}
+                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:border-brand-purple focus:outline-none font-semibold text-slate-800 text-sm placeholder:text-slate-300 transition-colors resize-none"
+                />
+              </div>
+
               {/* Category + Recurrence */}
               <div className="grid grid-cols-2 gap-3">
                 <CustomSelect label="Category" value={category}
@@ -666,20 +916,28 @@ export default function Tasks() {
                     Weekly tracker — each person checks their own {getWeeklyTarget(recurrence)} dots
                   </p>
                   <div className="space-y-2">
-                    {(['You', category === 'shared' ? (partnerName?.split(' ')[0] || 'Partner') : null]).filter(Boolean).map((person, pi) => (
-                      <div key={pi} className="flex items-center gap-2">
-                        <span className="text-[9px] font-black text-slate-400 uppercase w-[28px]">{person}</span>
-                        <div className="flex gap-1.5">
-                          {Array.from({ length: getWeeklyTarget(recurrence) }).map((_, i) => (
-                            <span key={i} className={`w-6 h-6 rounded-full border-2 border-dashed flex items-center justify-center ${
-                              pi === 0 ? 'border-emerald-300 bg-white' : 'border-brand-cyan/40 bg-white'
-                            }`}>
-                              <span className={`w-2 h-2 rounded-full ${pi === 0 ? 'bg-emerald-200' : 'bg-brand-cyan/20'}`} />
-                            </span>
-                          ))}
+                    {(category === 'shared'
+                      ? ['You', partnerName?.split(' ')[0] || 'Partner']
+                      : category === 'challenge'
+                        ? [partnerName?.split(' ')[0] || 'Partner']
+                        : ['You']
+                    ).map((person, pi) => {
+                      const isPartnerRow = category === 'challenge' || (category === 'shared' && pi === 1);
+                      return (
+                        <div key={pi} className="flex items-center gap-2">
+                          <span className="text-[9px] font-black text-slate-400 uppercase w-[28px]">{person}</span>
+                          <div className="flex gap-1.5">
+                            {Array.from({ length: getWeeklyTarget(recurrence) }).map((_, i) => (
+                              <span key={i} className={`w-6 h-6 rounded-full border-2 border-dashed flex items-center justify-center ${
+                                !isPartnerRow ? 'border-emerald-300 bg-white' : 'border-brand-cyan/40 bg-white'
+                              }`}>
+                                <span className={`w-2 h-2 rounded-full ${!isPartnerRow ? 'bg-emerald-200' : 'bg-brand-cyan/20'}`} />
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -690,12 +948,13 @@ export default function Tasks() {
               </button>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── FAB ──────────────────────────────────────────────────────────── */}
       {!isAdding && (
-        <button onClick={() => setIsAdding(true)}
+        <button onClick={() => { setCategory(activeTab); setIsAdding(true); }}
           className="fixed bottom-24 right-5 w-14 h-14 bg-gradient-to-tr from-brand-purple to-violet-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-brand-purple/40 hover:scale-110 active:scale-95 transition-transform z-40 border-2 border-white/20">
           <Plus size={26} strokeWidth={2.5} />
         </button>

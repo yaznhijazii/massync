@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { AlertTriangle } from 'lucide-react'
 
 interface ConfirmDialogProps {
@@ -21,7 +22,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   if (!isOpen) return null
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-brand-dark/50 backdrop-blur-sm z-[60] flex items-center justify-center p-5">
       <div className="bg-white rounded-[28px] w-full max-w-xs p-6 shadow-2xl border border-slate-100 animate-slide-up">
         {/* Icon */}
@@ -55,6 +56,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
