@@ -87,6 +87,19 @@ export interface Memory {
   page_url?: string
 }
 
+export interface TimeBlock {
+  id: string
+  pair_id: string
+  user_id: string
+  title: string
+  domain: 'spiritual' | 'work' | 'health' | 'downtime' | 'matches'
+  day: string // 'Monday', 'Tuesday', 'Wednesday', etc.
+  start_time: string // 'HH:MM'
+  end_time: string // 'HH:MM'
+  details?: string
+  created_by: 'you' | 'partner'
+}
+
 export interface Song {
   id: string
   pair_id: string
@@ -172,6 +185,7 @@ interface AppState {
   tasks: Task[]
   taskCompletions: TaskCompletion[]  // recurring task weekly completions
   memories: Memory[]
+  timeBlocks: TimeBlock[]
   songs: Song[]
   myPrayers: PrayerLog
   partnerPrayers: PrayerLog
@@ -235,6 +249,11 @@ interface AppState {
   addMemory: (memory: Omit<Memory, 'id' | 'pair_id' | 'created_by' | 'type'>) => void
   addOuting: (outing: Omit<Memory, 'id' | 'pair_id' | 'created_by' | 'type' | 'note'>) => void
   deleteMemory: (id: string) => Promise<void>
+  
+  // Time Block Actions
+  fetchTimeBlocks: () => Promise<void>
+  addTimeBlock: (block: Omit<TimeBlock, 'id' | 'pair_id' | 'user_id' | 'created_by'>) => Promise<void>
+  deleteTimeBlock: (id: string) => Promise<void>
   
   // Song Actions
   giftSong: (song: Omit<Song, 'id' | 'pair_id' | 'gifted_by' | 'gifted_at'>) => void
@@ -352,6 +371,53 @@ const migrateLocalTreeNodesToDB = async (
   }
 }
 
+const getDefaultTimeBlocks = (pairId: string, userId: string): TimeBlock[] => {
+  return [
+    { id: 'preset-1', pair_id: pairId, user_id: userId, title: 'Fajr Prayers', domain: 'spiritual', day: 'Monday', start_time: '05:00', end_time: '05:45', created_by: 'you' },
+    { id: 'preset-2', pair_id: pairId, user_id: userId, title: 'Coding MasSync', domain: 'work', day: 'Monday', start_time: '09:00', end_time: '13:00', created_by: 'you' },
+    { id: 'preset-3', pair_id: pairId, user_id: userId, title: 'Dhuhr & Lunch', domain: 'spiritual', day: 'Monday', start_time: '13:00', end_time: '14:00', created_by: 'you' },
+    { id: 'preset-4', pair_id: pairId, user_id: userId, title: 'Design Session', domain: 'work', day: 'Monday', start_time: '14:00', end_time: '17:00', created_by: 'you' },
+    { id: 'preset-5', pair_id: pairId, user_id: userId, title: 'Gym Workout', domain: 'health', day: 'Monday', start_time: '18:00', end_time: '19:30', created_by: 'you' },
+    { id: 'preset-6', pair_id: pairId, user_id: userId, title: 'Read Book', domain: 'downtime', day: 'Monday', start_time: '22:00', end_time: '23:00', created_by: 'you' },
+    
+    { id: 'preset-7', pair_id: pairId, user_id: userId, title: 'Fajr Prayers', domain: 'spiritual', day: 'Tuesday', start_time: '05:00', end_time: '05:45', created_by: 'you' },
+    { id: 'preset-8', pair_id: pairId, user_id: userId, title: 'Focus Work', domain: 'work', day: 'Tuesday', start_time: '09:00', end_time: '13:00', created_by: 'you' },
+    { id: 'preset-9', pair_id: pairId, user_id: userId, title: 'Dhuhr & Lunch', domain: 'spiritual', day: 'Tuesday', start_time: '13:00', end_time: '14:00', created_by: 'you' },
+    { id: 'preset-10', pair_id: pairId, user_id: userId, title: 'Brainstorming', domain: 'work', day: 'Tuesday', start_time: '14:00', end_time: '17:00', created_by: 'you' },
+    { id: 'preset-11', pair_id: pairId, user_id: userId, title: 'Evening Run', domain: 'health', day: 'Tuesday', start_time: '19:00', end_time: '20:00', created_by: 'you' },
+    { id: 'preset-12', pair_id: pairId, user_id: userId, title: 'Read Book', domain: 'downtime', day: 'Tuesday', start_time: '22:00', end_time: '23:00', created_by: 'you' },
+
+    { id: 'preset-13', pair_id: pairId, user_id: userId, title: 'Fajr Prayers', domain: 'spiritual', day: 'Wednesday', start_time: '05:00', end_time: '05:45', created_by: 'you' },
+    { id: 'preset-14', pair_id: pairId, user_id: userId, title: 'Coding Session', domain: 'work', day: 'Wednesday', start_time: '09:00', end_time: '13:00', created_by: 'you' },
+    { id: 'preset-15', pair_id: pairId, user_id: userId, title: 'Dhuhr & Lunch', domain: 'spiritual', day: 'Wednesday', start_time: '13:00', end_time: '14:00', created_by: 'you' },
+    { id: 'preset-16', pair_id: pairId, user_id: userId, title: 'Sprint Planning', domain: 'work', day: 'Wednesday', start_time: '14:00', end_time: '17:00', created_by: 'you' },
+    { id: 'preset-17', pair_id: pairId, user_id: userId, title: 'Gym Workout', domain: 'health', day: 'Wednesday', start_time: '18:00', end_time: '19:30', created_by: 'you' },
+    { id: 'preset-18', pair_id: pairId, user_id: userId, title: 'Relax & Podcast', domain: 'downtime', day: 'Wednesday', start_time: '22:00', end_time: '23:00', created_by: 'you' },
+
+    { id: 'preset-19', pair_id: pairId, user_id: userId, title: 'Fajr Prayers', domain: 'spiritual', day: 'Thursday', start_time: '05:00', end_time: '05:45', created_by: 'you' },
+    { id: 'preset-20', pair_id: pairId, user_id: userId, title: 'Focus Work', domain: 'work', day: 'Thursday', start_time: '09:00', end_time: '13:00', created_by: 'you' },
+    { id: 'preset-21', pair_id: pairId, user_id: userId, title: 'Dhuhr & Lunch', domain: 'spiritual', day: 'Thursday', start_time: '13:00', end_time: '14:00', created_by: 'you' },
+    { id: 'preset-22', pair_id: pairId, user_id: userId, title: 'Retrospective', domain: 'work', day: 'Thursday', start_time: '14:00', end_time: '17:00', created_by: 'you' },
+    { id: 'preset-23', pair_id: pairId, user_id: userId, title: 'Read Book', domain: 'downtime', day: 'Thursday', start_time: '22:00', end_time: '23:00', created_by: 'you' },
+
+    { id: 'preset-24', pair_id: pairId, user_id: userId, title: 'Fajr Prayers', domain: 'spiritual', day: 'Friday', start_time: '05:00', end_time: '05:45', created_by: 'you' },
+    { id: 'preset-25', pair_id: pairId, user_id: userId, title: 'Morning Focus', domain: 'work', day: 'Friday', start_time: '09:00', end_time: '12:00', created_by: 'you' },
+    { id: 'preset-26', pair_id: pairId, user_id: userId, title: 'Friday Prayer', domain: 'spiritual', day: 'Friday', start_time: '12:00', end_time: '13:30', created_by: 'you' },
+    { id: 'preset-27', pair_id: pairId, user_id: userId, title: 'Creative Coding', domain: 'work', day: 'Friday', start_time: '14:30', end_time: '17:00', created_by: 'you' },
+    { id: 'preset-28', pair_id: pairId, user_id: userId, title: 'Gym Workout', domain: 'health', day: 'Friday', start_time: '18:00', end_time: '19:30', created_by: 'you' },
+    { id: 'preset-29', pair_id: pairId, user_id: userId, title: 'Movie Night', domain: 'downtime', day: 'Friday', start_time: '22:00', end_time: '23:30', created_by: 'you' },
+
+    { id: 'preset-30', pair_id: pairId, user_id: userId, title: 'Fajr Prayers', domain: 'spiritual', day: 'Saturday', start_time: '05:00', end_time: '05:45', created_by: 'you' },
+    { id: 'preset-31', pair_id: pairId, user_id: userId, title: 'Cardio Workout', domain: 'health', day: 'Saturday', start_time: '10:00', end_time: '11:30', created_by: 'you' },
+    { id: 'preset-32', pair_id: pairId, user_id: userId, title: 'Argentina vs France', domain: 'matches', day: 'Saturday', start_time: '16:00', end_time: '18:00', details: 'World Cup Match: Watching live together! 🏆⚽', created_by: 'you' },
+    { id: 'preset-33', pair_id: pairId, user_id: userId, title: 'Dinner Outing', domain: 'downtime', day: 'Saturday', start_time: '19:00', end_time: '21:00', created_by: 'you' },
+
+    { id: 'preset-34', pair_id: pairId, user_id: userId, title: 'Fajr Prayers', domain: 'spiritual', day: 'Sunday', start_time: '05:00', end_time: '05:45', created_by: 'you' },
+    { id: 'preset-35', pair_id: pairId, user_id: userId, title: 'Weekly Planning', domain: 'work', day: 'Sunday', start_time: '11:00', end_time: '13:00', created_by: 'you' },
+    { id: 'preset-36', pair_id: pairId, user_id: userId, title: 'Real Madrid vs Barcelona', domain: 'matches', day: 'Sunday', start_time: '20:00', end_time: '22:00', details: 'El Clásico match: Watching with snacks! 🍿⚽', created_by: 'you' }
+  ]
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   // Default values
   user: getInitialUser(),
@@ -378,6 +444,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   taskCompletions: [],
 
   memories: [],
+  timeBlocks: [],
 
   songs: [],
 
@@ -976,7 +1043,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const token = sessionResult.data.session?.access_token
       if (!token) return
 
-      const res = await fetch(`${supabaseUrl}/rest/v1/memories`, {
+      let res = await fetch(`${supabaseUrl}/rest/v1/memories`, {
         method: 'POST',
         headers: {
           'apikey': supabaseAnonKey,
@@ -997,19 +1064,58 @@ export const useAppStore = create<AppState>((set, get) => ({
           type: 'memory'
         })
       })
-      if (res.ok) {
-        const inserted = await res.json()
-        if (inserted[0]) {
-          set((state) => ({
-            memories: state.memories.map((m) => m.id === tempId ? {
-              ...m,
-              id: inserted[0].id
-            } : m)
-          }))
+
+      if (!res.ok) {
+        const errText = await res.text()
+        console.warn('[MasSync] Failed to insert memory, checking for photos column issue:', errText)
+        
+        if (errText.includes('photos') || errText.includes('column') || res.status === 400) {
+          console.warn('[MasSync] Retrying memory insert without the "photos" column...')
+          res = await fetch(`${supabaseUrl}/rest/v1/memories`, {
+            method: 'POST',
+            headers: {
+              'apikey': supabaseAnonKey,
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify({
+              pair_id: pairId,
+              created_by: userId,
+              date: memory.date,
+              title: memory.title,
+              note: memory.note,
+              mood_emoji: memory.mood_emoji,
+              tags: memory.tags,
+              photo: memory.photo,
+              type: 'memory'
+            })
+          })
+          
+          if (!res.ok) {
+            throw new Error(await res.text())
+          }
+          
+          get().showToast('Saved memory! (Note: Run add_memories_photos_column.sql in Supabase to support multiple photos)', 'info')
+        } else {
+          throw new Error(errText)
         }
       }
-    } catch (e) {
+
+      const inserted = await res.json()
+      if (inserted[0]) {
+        set((state) => ({
+          memories: state.memories.map((m) => m.id === tempId ? {
+            ...m,
+            id: inserted[0].id
+          } : m)
+        }))
+        get().showToast('Memory added! 📸', 'success')
+      }
+    } catch (e: any) {
       console.error('[MasSync] Error adding memory to DB:', e)
+      set((state) => ({ memories: state.memories.filter((m) => m.id !== tempId) }))
+      get().showToast(`Failed to save memory: ${e.message || e}`, 'error')
     }
   },
 
@@ -2187,6 +2293,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               get().fetchTasks()
               get().fetchSongs()
               get().fetchMemories()
+              get().fetchTimeBlocks()
               get().fetchPrayers()
               get().fetchAthkarLogs()
               get().fetchHobbies().catch(() => {})
@@ -2267,6 +2374,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       tasks: [],
       taskCompletions: [],
       memories: [],
+      timeBlocks: [],
       songs: [],
       hobbies: [],
       myPrayers: { fajr: false, dhuhr: false, asr: false, maghrib: false, isha: false },
@@ -2419,6 +2527,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         'postgres_changes',
         { event: '*', schema: 'public', table: 'memories', filter: `pair_id=eq.${pairId}` },
         () => { get().fetchMemories() }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'time_blocks', filter: `pair_id=eq.${pairId}` },
+        () => { get().fetchTimeBlocks() }
       )
       .on(
         'postgres_changes',
@@ -2631,6 +2744,177 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     } catch (e) {
       console.error('[MasSync] Error fetching memories:', e)
+    }
+  },
+
+  fetchTimeBlocks: async () => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) throw new Error('No auth token')
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/time_blocks?pair_id=eq.${pairId}&order=created_at.asc`, {
+        headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const mappedBlocks: TimeBlock[] = data.map((b: any) => ({
+          id: b.id,
+          pair_id: b.pair_id,
+          user_id: b.user_id,
+          title: b.title,
+          domain: b.domain,
+          day: b.day,
+          start_time: b.start_time,
+          end_time: b.end_time,
+          details: b.details || '',
+          created_by: b.user_id === userId ? 'you' : 'partner'
+        }))
+        set({ timeBlocks: mappedBlocks })
+      } else {
+        const errText = await res.text()
+        if (res.status === 404 || errText.includes('does not exist') || res.status === 400) {
+          // Fallback to local storage
+          const localBlocks = localStorage.getItem(`time_blocks_${pairId}`)
+          if (localBlocks) {
+            set({ timeBlocks: JSON.parse(localBlocks) })
+          } else {
+            // Load some default presets for the user so it looks stunning immediately
+            const presets = getDefaultTimeBlocks(pairId, userId)
+            localStorage.setItem(`time_blocks_${pairId}`, JSON.stringify(presets))
+            set({ timeBlocks: presets })
+          }
+        } else {
+          throw new Error(errText)
+        }
+      }
+    } catch (e) {
+      console.warn('[MasSync] Time blocks DB load failed, loading from local storage:', e)
+      const localBlocks = localStorage.getItem(`time_blocks_${pairId}`)
+      if (localBlocks) {
+        set({ timeBlocks: JSON.parse(localBlocks) })
+      } else {
+        const presets = getDefaultTimeBlocks(pairId, userId)
+        localStorage.setItem(`time_blocks_${pairId}`, JSON.stringify(presets))
+        set({ timeBlocks: presets })
+      }
+    }
+  },
+
+  addTimeBlock: async (block) => {
+    const pairId = get().pairId
+    const userId = get().user?.id
+    if (!pairId || !userId) return
+
+    const tempId = `temp-tb-${Date.now()}`
+    const newBlock: TimeBlock = {
+      ...block,
+      id: tempId,
+      pair_id: pairId,
+      user_id: userId,
+      created_by: 'you'
+    }
+    set((state) => ({ timeBlocks: [...state.timeBlocks, newBlock] }))
+
+    // Save to local storage anyway for instantaneous response and fallback sync
+    const localKey = `time_blocks_${pairId}`
+    const currentLocal = JSON.parse(localStorage.getItem(localKey) || '[]')
+    localStorage.setItem(localKey, JSON.stringify([...currentLocal, newBlock]))
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/time_blocks`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          pair_id: pairId,
+          user_id: userId,
+          title: block.title,
+          domain: block.domain,
+          day: block.day,
+          start_time: block.start_time,
+          end_time: block.end_time,
+          details: block.details || ''
+        })
+      })
+
+      if (res.ok) {
+        const inserted = await res.json()
+        if (inserted[0]) {
+          set((state) => ({
+            timeBlocks: state.timeBlocks.map((b) => b.id === tempId ? {
+              ...b,
+              id: inserted[0].id
+            } : b)
+          }))
+          // Update in local storage with the real DB ID
+          const updatedLocal = JSON.parse(localStorage.getItem(localKey) || '[]').map((b: any) =>
+            b.id === tempId ? { ...b, id: inserted[0].id } : b
+          )
+          localStorage.setItem(localKey, JSON.stringify(updatedLocal))
+        }
+      } else {
+        const errText = await res.text()
+        if (res.status === 404 || errText.includes('does not exist') || res.status === 400) {
+          console.warn('[MasSync] time_blocks table does not exist in Supabase. Storing in local storage only.')
+        } else {
+          throw new Error(errText)
+        }
+      }
+    } catch (e) {
+      console.error('[MasSync] Error adding time block to DB:', e)
+    }
+  },
+
+  deleteTimeBlock: async (id) => {
+    const pairId = get().pairId
+    if (!pairId) return
+
+    set((state) => ({
+      timeBlocks: state.timeBlocks.filter((b) => b.id !== id)
+    }))
+
+    const localKey = `time_blocks_${pairId}`
+    const currentLocal = JSON.parse(localStorage.getItem(localKey) || '[]')
+    localStorage.setItem(localKey, JSON.stringify(currentLocal.filter((b: any) => b.id !== id)))
+
+    if (id.startsWith('temp-tb-')) return
+
+    try {
+      const sessionResult = await supabase.auth.getSession()
+      const token = sessionResult.data.session?.access_token
+      if (!token) return
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/time_blocks?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (!res.ok) {
+        const errText = await res.text()
+        if (res.status === 404 || errText.includes('does not exist') || res.status === 400) {
+          // Ignored
+        } else {
+          throw new Error(errText)
+        }
+      }
+    } catch (e) {
+      console.error('[MasSync] Error deleting time block from DB:', e)
     }
   },
 

@@ -10,6 +10,7 @@ import SignUp from './pages/SignUp'
 import Settings from './pages/Settings'
 import RelationshipTree from './pages/RelationshipTree'
 import Gifts from './pages/Gifts'
+import Space from './pages/Space'
 import { BottomNav } from './components/BottomNav'
 import { ToastContainer } from './components/Toast'
 import { useAppStore } from './store/useAppStore'
@@ -97,6 +98,7 @@ function App() {
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/tree" element={<RelationshipTree />} />
                 <Route path="/gifts" element={<Gifts />} />
+                <Route path="/space" element={<Space />} />
                 {/* Fallbacks */}
                 <Route path="/login" element={<Navigate to="/" replace />} />
                 <Route path="/signup" element={<Navigate to="/" replace />} />

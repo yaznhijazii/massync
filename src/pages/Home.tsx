@@ -168,11 +168,18 @@ export default function Home() {
 
               {/* ── Me ── */}
               <div className="flex flex-col items-center gap-3 w-[38%]">
-                <div className="relative">
-                  <div className="absolute -inset-1.5 rounded-full bg-gradient-to-tr from-brand-cyan to-brand-purple opacity-70 blur-[3px] animate-pulse" />
+                <div 
+                  onClick={() => navigate('/space')}
+                  className="relative cursor-pointer hover:scale-105 active:scale-95 transition-transform group/avatar"
+                  title="Go to My Space 🚀"
+                >
+                  <div className="absolute -inset-1.5 rounded-full bg-gradient-to-tr from-brand-cyan to-brand-purple opacity-70 blur-[3px] animate-pulse group-hover/avatar:opacity-100 transition-opacity" />
                   <div className="relative w-[72px] h-[72px] rounded-full p-[3px] bg-white shadow-xl">
-                    <div className="w-full h-full rounded-full overflow-hidden bg-slate-100 flex items-center justify-center">
+                    <div className="w-full h-full rounded-full overflow-hidden bg-slate-100 flex items-center justify-center relative">
                       {userAvatar ? <img src={userAvatar} className="w-full h-full object-cover" alt={userName} /> : <User size={28} className="text-slate-400" />}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center text-white text-[8px] font-black uppercase tracking-wider text-center">
+                        Space 🚀
+                      </div>
                     </div>
                   </div>
                   <div className="absolute bottom-0.5 right-0.5 w-4 h-4 bg-emerald-500 border-[2.5px] border-white rounded-full shadow-md z-10" />
