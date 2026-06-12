@@ -8,7 +8,8 @@ import {
   ChevronLeft, Plus, Clock, Trash2, Calendar, LayoutGrid, 
   BookOpen, User, Trophy, BarChart2, Download, 
   Eye, EyeOff, Lightbulb, Compass, Laptop, Dumbbell, 
-  Utensils, Footprints, Coffee, PenTool, Film, Car, Moon 
+  Utensils, Footprints, Coffee, PenTool, Film, Car, Moon,
+  DollarSign, TrendingUp, ShoppingBag, CreditCard, Sparkles
 } from 'lucide-react'
 
 const DOMAINS = [
@@ -36,8 +37,11 @@ const PRESETS = [
   { title: 'Football Match', domain: 'matches', icon: Trophy, textClass: 'text-pink-600', borderClass: 'border-pink-500/30' }
 ] as const
 
-function timeToMinutes(timeStr: string): number {
+function timeToMinutes(timeStr: string, isEndTime = false): number {
   const [h, m] = timeStr.split(':').map(Number)
+  if (h === 0 && m === 0 && isEndTime) {
+    return 24 * 60
+  }
   return (h || 0) * 60 + (m || 0)
 }
 
@@ -46,7 +50,7 @@ export default function Space() {
   const { timeBlocks, addTimeBlock, deleteTimeBlock, showToast } = useAppStore()
 
   const [activeDay, setActiveDay] = useState<string>('Saturday')
-  const [activeTab, setActiveTab] = useState<'calendar' | 'analytics'>('calendar')
+  const [activeTab, setActiveTab] = useState<'calendar' | 'money' | 'analytics'>('calendar')
   const [isAddingBlock, setIsAddingBlock] = useState(false)
   const [tourStep, setTourStep] = useState<number | null>(null)
   
@@ -64,6 +68,36 @@ export default function Space() {
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
+  // Money Planner State
+  const [expenses, setExpenses] = useState<{ id: string; title: string; amount: number; category: string; date: string }[]>(() => {
+    const saved = localStorage.getItem('monthly_expenses')
+    return saved ? JSON.parse(saved) : [
+      { id: '1', title: 'Monthly Rent', amount: 350, category: 'Rent', date: '2026-06-01' },
+      { id: '2', title: 'Groceries Store', amount: 85, category: 'Food', date: '2026-06-05' },
+      { id: '3', title: 'Electricity Bill', amount: 45, category: 'Bills', date: '2026-06-10' }
+    ]
+  })
+  const [monthlyBudget, setMonthlyBudget] = useState<number>(() => {
+    const saved = localStorage.getItem('monthly_budget')
+    return saved ? parseFloat(saved) : 800
+  })
+  const [isEditingBudget, setIsEditingBudget] = useState(false)
+  const [tempBudget, setTempBudget] = useState(monthlyBudget.toString())
+
+  const [isAddingExpense, setIsAddingExpense] = useState(false)
+  const [expenseTitle, setExpenseTitle] = useState('')
+  const [expenseAmount, setExpenseAmount] = useState('')
+  const [expenseCategory, setExpenseCategory] = useState('Food')
+  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0])
+
+  useEffect(() => {
+    localStorage.setItem('monthly_expenses', JSON.stringify(expenses))
+  }, [expenses])
+
+  useEffect(() => {
+    localStorage.setItem('monthly_budget', monthlyBudget.toString())
+  }, [monthlyBudget])
+
   const activeDayBlocks = timeBlocks
     .filter((b) => b.day === activeDay)
     .sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time))
@@ -71,7 +105,7 @@ export default function Space() {
   // Time metrics calculations
   const totalHours = timeBlocks.reduce((acc, b) => {
     const start = timeToMinutes(b.start_time)
-    const end = timeToMinutes(b.end_time)
+    const end = timeToMinutes(b.end_time, true)
     const diff = (end - start) / 60
     return acc + (diff > 0 ? diff : 0)
   }, 0)
@@ -80,7 +114,7 @@ export default function Space() {
     const hrs = timeBlocks
       .filter((b) => b.domain === dom.id)
       .reduce((s, b) => {
-        const diff = (timeToMinutes(b.end_time) - timeToMinutes(b.start_time)) / 60
+        const diff = (timeToMinutes(b.end_time, true) - timeToMinutes(b.start_time)) / 60
         return s + (diff > 0 ? diff : 0)
       }, 0)
     acc[dom.id] = hrs
@@ -120,7 +154,7 @@ export default function Space() {
     if (!title.trim() || !startTime || !endTime || selectedDays.length === 0) return
 
     const startMin = timeToMinutes(startTime)
-    const endMin = timeToMinutes(endTime)
+    const endMin = timeToMinutes(endTime, true)
 
     if (endMin <= startMin) {
       showToast('End time must be after start time!', 'error')
@@ -289,28 +323,35 @@ export default function Space() {
 
         {/* Tabs Switcher (hidden when exporting) */}
         {!isExporting && (
-          <div className="flex bg-slate-100/60 backdrop-blur-md p-1 rounded-2xl border border-slate-200/50">
+          <div className="flex bg-slate-100/60 backdrop-blur-md p-1 rounded-2xl border border-slate-200/50 mb-5">
+            <button
+              onClick={() => navigate('/')}
+              className="flex-1 py-3 px-3 rounded-xl font-black text-xs uppercase tracking-wide transition-all duration-200 active-pop flex items-center justify-center gap-1 text-slate-400 hover:text-slate-655"
+            >
+              <ChevronLeft size={13} strokeWidth={2.5} />
+              Sync Home
+            </button>
             <button
               onClick={() => setActiveTab('calendar')}
-              className={`flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wide transition-all duration-200 active-pop flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-3 px-3 rounded-xl font-black text-xs uppercase tracking-wide transition-all duration-200 active-pop flex items-center justify-center gap-1 ${
                 activeTab === 'calendar'
                   ? 'bg-white text-brand-dark shadow-sm border border-slate-100/50'
                   : 'text-slate-400 hover:text-slate-655'
               }`}
             >
               <Calendar size={13} />
-              Hourly Grid
+              Weekly Planner
             </button>
             <button
-              onClick={() => setActiveTab('analytics')}
-              className={`flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wide transition-all duration-200 active-pop flex items-center justify-center gap-1.5 ${
-                activeTab === 'analytics'
+              onClick={() => setActiveTab('money')}
+              className={`flex-1 py-3 px-3 rounded-xl font-black text-xs uppercase tracking-wide transition-all duration-200 active-pop flex items-center justify-center gap-1 ${
+                activeTab === 'money'
                   ? 'bg-white text-brand-dark shadow-sm border border-slate-100/50'
                   : 'text-slate-400 hover:text-slate-655'
               }`}
             >
-              <BarChart2 size={13} />
-              Domain Metrics
+              <DollarSign size={13} />
+              Money Planner
             </button>
           </div>
         )}
@@ -397,7 +438,7 @@ export default function Space() {
                         {Array.from({ length: 24 }).map((_, hr) => {
                           const matchingBlock = dayBlocks.find((b) => {
                             const startHr = parseInt(b.start_time.split(':')[0] || '0')
-                            const endHr = parseInt(b.end_time.split(':')[0] || '0')
+                            const endHr = b.end_time === '00:00' ? 24 : parseInt(b.end_time.split(':')[0] || '0')
                             return hr >= startHr && hr < endHr
                           })
                           
@@ -507,7 +548,7 @@ export default function Space() {
                   >
                     {activeDayBlocks.map((block) => {
                       const startMin = timeToMinutes(block.start_time)
-                      const endMin = timeToMinutes(block.end_time)
+                      const endMin = timeToMinutes(block.end_time, true)
                       const displayStartMin = displayStartHour * 60
                       
                       // Skip rendering if block lies entirely outside display hours
@@ -799,6 +840,257 @@ export default function Space() {
         </div>,
         document.body
       )}
+        {activeTab === 'money' && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Budget Summary Card */}
+            <div className="card-soft bg-gradient-to-tr from-brand-cyan/10 to-teal-500/5 border border-brand-cyan/20 p-5 rounded-[28px] shadow-sm">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <span className="text-[9px] font-black uppercase text-brand-cyan tracking-wider">Shared Budget Dashboard</span>
+                  {isEditingBudget ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        type="number"
+                        value={tempBudget}
+                        onChange={(e) => setTempBudget(e.target.value)}
+                        className="w-24 px-2 py-1 text-sm font-black border border-slate-300 rounded-xl focus:outline-none"
+                      />
+                      <button
+                        onClick={() => {
+                          const num = parseFloat(tempBudget)
+                          if (!isNaN(num) && num > 0) {
+                            setMonthlyBudget(num)
+                          }
+                          setIsEditingBudget(false)
+                        }}
+                        className="text-[10px] font-black uppercase px-2.5 py-1 bg-brand-cyan text-white rounded-lg"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 mt-1">
+                      <h3 className="text-2xl font-black text-slate-800 font-mono">${monthlyBudget.toFixed(0)}</h3>
+                      <button
+                        onClick={() => {
+                          setTempBudget(monthlyBudget.toString())
+                          setIsEditingBudget(true)
+                        }}
+                        className="text-[9px] font-black uppercase text-brand-cyan bg-brand-cyan/10 px-2 py-0.5 rounded"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-brand-cyan/10 flex items-center justify-center">
+                  <DollarSign className="text-brand-cyan" size={20} />
+                </div>
+              </div>
+
+              {/* Progress and indicators */}
+              {(() => {
+                const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0)
+                const remaining = Math.max(monthlyBudget - totalSpent, 0)
+                const percentSpent = Math.min((totalSpent / monthlyBudget) * 100, 100)
+                const isOverBudget = totalSpent > monthlyBudget
+
+                return (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                      <div className="bg-white/40 border border-white/50 p-3 rounded-2xl">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block">Total Spent</span>
+                        <span className="text-lg font-black text-slate-700 font-mono">${totalSpent.toFixed(2)}</span>
+                      </div>
+                      <div className="bg-white/40 border border-white/50 p-3 rounded-2xl">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block">Remaining</span>
+                        <span className={`text-lg font-black font-mono ${isOverBudget ? 'text-rose-500' : 'text-emerald-600'}`}>
+                          ${remaining.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/30">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            percentSpent > 90 ? 'bg-gradient-to-r from-red-500 to-rose-600' :
+                            percentSpent > 75 ? 'bg-gradient-to-r from-amber-400 to-orange-500' :
+                            'bg-gradient-to-r from-emerald-400 to-teal-500'
+                          }`}
+                          style={{ width: `${percentSpent}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase">
+                        <span>{percentSpent.toFixed(0)}% Spent</span>
+                        {isOverBudget && <span className="text-rose-500 font-bold">Alert: Over Budget!</span>}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* Expenses List */}
+            <div className="space-y-3">
+              <div className="flex justify-between items-center px-1">
+                <h3 className="font-black text-lg text-brand-dark">Expense Log</h3>
+                <button
+                  onClick={() => setIsAddingExpense(true)}
+                  className="px-3.5 py-2 bg-gradient-to-tr from-brand-cyan to-teal-400 text-white rounded-2xl font-black text-[10px] uppercase tracking-wider shadow-md active-pop flex items-center gap-1"
+                >
+                  <Plus size={11} strokeWidth={3} />
+                  Add Expense
+                </button>
+              </div>
+
+              {expenses.length === 0 ? (
+                <div className="card-soft py-10 text-center text-slate-400 border border-dashed border-slate-200 bg-white/40 flex flex-col items-center justify-center select-none">
+                  <TrendingUp className="text-slate-350 mb-2 animate-pulse" size={24} />
+                  <p className="font-extrabold text-sm">No expenses recorded yet</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Start tracking your monthly budget together!</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {expenses.map((exp) => (
+                    <div
+                      key={exp.id}
+                      className="card-soft bg-white/70 border border-white/50 p-4 shadow-sm flex items-center justify-between hover:scale-[1.01] transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200/30">
+                          {exp.category === 'Food' && <Utensils size={14} />}
+                          {exp.category === 'Bills' && <CreditCard size={14} />}
+                          {exp.category === 'Rent' && <Compass size={14} />}
+                          {exp.category === 'Shopping' && <ShoppingBag size={14} />}
+                          {exp.category === 'Entertainment' && <Sparkles size={14} />}
+                        </div>
+                        <div>
+                          <h4 className="font-black text-sm text-slate-800 leading-tight">{exp.title}</h4>
+                          <span className="text-[9px] font-bold text-slate-400 mt-0.5 block font-mono">
+                            {exp.category} • {exp.date}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-black text-sm text-slate-700 font-mono">${exp.amount.toFixed(2)}</span>
+                        <button
+                          onClick={() => setExpenses(expenses.filter((e) => e.id !== exp.id))}
+                          className="w-7 h-7 rounded-lg hover:bg-rose-50 hover:text-rose-500 flex items-center justify-center text-slate-400 transition-colors"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+      {/* Add Expense Modal */}
+      {isAddingExpense && createPortal(
+        <div className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[32px] w-full max-w-sm p-6 shadow-2xl animate-slide-up border border-slate-100">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="font-extrabold text-xl text-brand-dark">Add New Expense</h3>
+              <button
+                onClick={() => setIsAddingExpense(false)}
+                className="text-brand-gray font-bold text-sm bg-slate-100 px-3 py-1.5 rounded-full hover:bg-slate-200 active-pop"
+              >
+                Cancel
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                const numAmount = parseFloat(expenseAmount)
+                if (!expenseTitle.trim() || isNaN(numAmount) || numAmount <= 0) return
+
+                const newExp = {
+                  id: `exp-${Date.now()}`,
+                  title: expenseTitle.trim(),
+                  amount: numAmount,
+                  category: expenseCategory,
+                  date: expenseDate
+                }
+                setExpenses([newExp, ...expenses])
+                
+                // Reset form state
+                setExpenseTitle('')
+                setExpenseAmount('')
+                setExpenseCategory('Food')
+                setIsAddingExpense(false)
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-bold text-brand-dark uppercase tracking-wider mb-2">Title</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Electricity Bill, Coffee outing..."
+                  value={expenseTitle}
+                  onChange={(e) => setExpenseTitle(e.target.value)}
+                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:border-brand-cyan focus:outline-none font-semibold text-brand-dark text-sm"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-brand-dark uppercase tracking-wider mb-2">Amount ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={expenseAmount}
+                    onChange={(e) => setExpenseAmount(e.target.value)}
+                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:border-brand-cyan focus:outline-none font-semibold text-brand-dark text-sm"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-brand-dark uppercase tracking-wider mb-2">Category</label>
+                  <select
+                    value={expenseCategory}
+                    onChange={(e) => setExpenseCategory(e.target.value)}
+                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:border-brand-cyan focus:outline-none font-bold text-sm text-brand-dark"
+                  >
+                    <option value="Food">Food</option>
+                    <option value="Bills">Bills</option>
+                    <option value="Rent">Rent</option>
+                    <option value="Shopping">Shopping</option>
+                    <option value="Entertainment">Entertainment</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-brand-dark uppercase tracking-wider mb-2">Date</label>
+                <input
+                  type="date"
+                  value={expenseDate}
+                  onChange={(e) => setExpenseDate(e.target.value)}
+                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:border-brand-cyan focus:outline-none font-semibold text-brand-dark text-sm"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3.5 bg-gradient-to-r from-brand-cyan to-teal-500 text-white rounded-2xl font-bold shadow-lg shadow-brand-cyan/20 hover:scale-[0.99] transition-all"
+              >
+                Add Transaction
+              </button>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Interactive Tour Modal Portal */}
       {tourStep !== null && createPortal(
         <div className="fixed inset-0 bg-brand-dark/45 backdrop-blur-sm z-50 flex items-center justify-center p-4">
