@@ -48,6 +48,7 @@ export default function Space() {
   const [activeDay, setActiveDay] = useState<string>('Saturday')
   const [activeTab, setActiveTab] = useState<'calendar' | 'analytics'>('calendar')
   const [isAddingBlock, setIsAddingBlock] = useState(false)
+  const [tourStep, setTourStep] = useState<number | null>(null)
   
   // UX: Core waking hours (06:00 - 23:00) vs Full 24 hours (00:00 - 23:00)
   const [showFullDay, setShowFullDay] = useState(false)
@@ -56,7 +57,7 @@ export default function Space() {
   // Form State
   const [title, setTitle] = useState('')
   const [domain, setDomain] = useState<TimeBlock['domain']>('work')
-  const [day, setDay] = useState<string>('Monday')
+  const [selectedDays, setSelectedDays] = useState<string[]>(['Saturday'])
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('10:00')
   const [details, setDetails] = useState('')
@@ -114,9 +115,9 @@ export default function Space() {
     }
   }, [activeDay, activeTab, showFullDay, isExporting, activeDayBlocks.length])
 
-  const handleAddBlockSubmit = (e: React.FormEvent) => {
+  const handleAddBlockSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!title.trim() || !startTime || !endTime) return
+    if (!title.trim() || !startTime || !endTime || selectedDays.length === 0) return
 
     const startMin = timeToMinutes(startTime)
     const endMin = timeToMinutes(endTime)
@@ -126,14 +127,17 @@ export default function Space() {
       return
     }
 
-    addTimeBlock({
-      title,
-      domain,
-      day,
-      start_time: startTime,
-      end_time: endTime,
-      details: details.trim() || undefined
-    })
+    // Add block for each selected day
+    for (const d of selectedDays) {
+      addTimeBlock({
+        title,
+        domain,
+        day: d,
+        start_time: startTime,
+        end_time: endTime,
+        details: details.trim() || undefined
+      })
+    }
 
     // Reset Form
     setTitle('')
@@ -145,7 +149,7 @@ export default function Space() {
   const handleTapPreset = (preset: typeof PRESETS[number]) => {
     setTitle(preset.title)
     setDomain(preset.domain)
-    setDay(activeDay)
+    setSelectedDays([activeDay])
 
     const now = new Date()
     const hr = now.getHours()
@@ -206,7 +210,7 @@ export default function Space() {
   return (
     <div className="relative pb-28 pt-14 px-4 min-h-screen animate-fade-in">
       {/* Header */}
-      <header className="flex justify-between items-center mb-5 px-2">
+      <header className="flex justify-between items-center mb-5 px-1">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/')}
@@ -215,9 +219,17 @@ export default function Space() {
             <ChevronLeft size={18} strokeWidth={2.5} />
           </button>
           <div>
-            <h1 className="text-2xl font-black text-brand-dark tracking-tight">
-              My Space
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-black text-brand-dark tracking-tight">
+                My Space
+              </h1>
+              <button 
+                onClick={() => setTourStep(0)}
+                className="text-[9px] font-black uppercase text-brand-purple bg-brand-purple/10 border border-brand-purple/20 px-2.5 py-0.5 rounded-lg active-pop hover:bg-brand-purple/15 transition-all"
+              >
+                Tour 🚀
+              </button>
+            </div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
               Weekly Time-Budgeting
             </p>
@@ -470,7 +482,7 @@ export default function Space() {
                 <div 
                   ref={scrollContainerRef}
                   className={`relative border-l border-slate-200/60 pl-8 transition-all duration-300 ${
-                    isExporting ? 'h-auto overflow-visible' : 'h-[360px] overflow-y-auto pr-1 scrollbar-thin'
+                    isExporting ? 'h-auto overflow-visible' : 'h-[360px] md:h-[460px] overflow-y-auto pr-1 scrollbar-thin'
                   }`}
                 >
                   {/* Vertical timeline background hours */}
@@ -621,16 +633,16 @@ export default function Space() {
       {!isExporting && (
         <button
           onClick={() => {
-            // Pre-fill fields with standard defaults
+            // Pre-fill fields with defaults
             setTitle('')
             setDetails('')
             setDomain('work')
-            setDay(activeDay)
+            setSelectedDays([activeDay])
             setStartTime('09:00')
             setEndTime('10:00')
             setIsAddingBlock(true)
           }}
-          className="fixed bottom-24 right-8 w-14 h-14 bg-gradient-to-tr from-brand-purple to-pink-500 text-white rounded-full flex items-center justify-center shadow-xl shadow-brand-purple/35 hover:scale-110 active:scale-95 transition-transform z-40 border border-white/20 active-pop animate-pulse"
+          className="fixed bottom-24 right-6 md:right-8 w-14 h-14 bg-gradient-to-tr from-brand-purple to-pink-500 text-white rounded-full flex items-center justify-center shadow-xl shadow-brand-purple/35 hover:scale-110 active:scale-95 transition-transform z-40 border border-white/20 active-pop animate-pulse"
           title="Schedule a Domain Time Block"
         >
           <Plus size={28} strokeWidth={3} />
@@ -695,33 +707,49 @@ export default function Space() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-brand-dark uppercase tracking-wider mb-2">Domain Category</label>
-                  <select
-                    value={domain}
-                    onChange={(e) => setDomain(e.target.value as TimeBlock['domain'])}
-                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:border-brand-purple focus:outline-none font-bold text-sm text-brand-dark"
-                  >
-                    <option value="spiritual">Spiritual Routine</option>
-                    <option value="work">Focus Work</option>
-                    <option value="health">Physical Health</option>
-                    <option value="downtime">Personal Downtime</option>
-                    <option value="matches">Sports & Matches</option>
-                  </select>
-                </div>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-brand-dark uppercase tracking-wider block">Domain Category</label>
+                <select
+                  value={domain}
+                  onChange={(e) => setDomain(e.target.value as TimeBlock['domain'])}
+                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:border-brand-purple focus:outline-none font-bold text-sm text-brand-dark animate-fade-in"
+                >
+                  <option value="spiritual">Spiritual Routine</option>
+                  <option value="work">Focus Work</option>
+                  <option value="health">Physical Health</option>
+                  <option value="downtime">Personal Downtime</option>
+                  <option value="matches">Sports & Matches</option>
+                </select>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-brand-dark uppercase tracking-wider mb-2">Day of Week</label>
-                  <select
-                    value={day}
-                    onChange={(e) => setDay(e.target.value)}
-                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:border-brand-purple focus:outline-none font-bold text-sm text-brand-dark"
-                  >
-                    {DAYS.map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
+              <div>
+                <label className="block text-xs font-bold text-brand-dark uppercase tracking-wider mb-2">Days of Week (Tap to select multiple)</label>
+                <div className="flex flex-wrap gap-2">
+                  {DAYS.map((d) => {
+                    const isSelected = selectedDays.includes(d)
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            if (selectedDays.length > 1) {
+                              setSelectedDays(selectedDays.filter((sd) => sd !== d))
+                            }
+                          } else {
+                            setSelectedDays([...selectedDays, d])
+                          }
+                        }}
+                        className={`flex-1 min-w-[70px] py-2.5 rounded-xl text-xs font-black border transition-all active-pop text-center ${
+                          isSelected 
+                            ? 'bg-brand-purple text-white border-brand-purple/20 shadow-sm' 
+                            : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {d.substring(0, 3)}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -767,6 +795,52 @@ export default function Space() {
                 Schedule Block
               </button>
             </form>
+          </div>
+        </div>,
+        document.body
+      )}
+      {/* Interactive Tour Modal Portal */}
+      {tourStep !== null && createPortal(
+        <div className="fixed inset-0 bg-brand-dark/45 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#FAF9F5] rounded-[32px] w-full max-w-sm p-6 shadow-2xl animate-scale-in border border-slate-100 relative overflow-hidden text-center space-y-4">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-purple via-brand-cyan to-emerald-500" />
+            <div className="w-12 h-12 rounded-2xl bg-brand-purple/10 flex items-center justify-center mx-auto text-brand-purple font-black text-sm font-mono">
+              {tourStep + 1} / 5
+            </div>
+            <h3 className="font-extrabold text-lg text-brand-dark">
+              {tourStep === 0 && "Welcome to My Space! 🚀"}
+              {tourStep === 1 && "Weekly Heatmap Grid 📊"}
+              {tourStep === 2 && "Quick Presets 💡"}
+              {tourStep === 3 && "Multi-Day Scheduling 🗓️"}
+              {tourStep === 4 && "Export Your Plan 📸"}
+            </h3>
+            <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+              {tourStep === 0 && "This is your weekly time-budgeting workspace where you can visually organize your habits, spiritual routines, work hours, and hobbies."}
+              {tourStep === 1 && "At the top, the Allocation Heatmap shows your entire week at a glance. Darker blocks represent your scheduled domain blocks."}
+              {tourStep === 2 && "Quickly tap preset items like Gym, Coding, or Mosque to instantly pre-fill and schedule common activities."}
+              {tourStep === 3 && "No need to repeat tasks! When scheduling a block, you can select multiple days (like Saturday, Monday, and Wednesday) to create them all in one click."}
+              {tourStep === 4 && "Click 'Export Pic' to download your schedule as a premium image card to share with your partner or save for reference."}
+            </p>
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => setTourStep(null)}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors active-pop"
+              >
+                Skip Tour
+              </button>
+              <button
+                onClick={() => {
+                  if (tourStep < 4) {
+                    setTourStep(tourStep + 1)
+                  } else {
+                    setTourStep(null)
+                  }
+                }}
+                className="flex-1 py-3 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-colors active-pop"
+              >
+                {tourStep === 4 ? "Finish" : "Next"}
+              </button>
+            </div>
           </div>
         </div>,
         document.body
