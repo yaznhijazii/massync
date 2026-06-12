@@ -1,27 +1,27 @@
 import React, { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useAppStore } from '../store/useAppStore'
-import { Calendar as CalendarIcon, MapPin, Clock, Plus, Smile, Compass, Camera, History, Map, Zap, Heart, Pizza, Coffee, Globe, Upload, X, User, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Calendar as CalendarIcon, MapPin, Clock, Plus, Smile, Compass, Camera, History, Map, Zap, Heart, Pizza, Coffee, Globe, Upload, X, User, Trash2, ChevronLeft, ChevronRight, Utensils, Film, BookOpen, Footprints, Sparkles } from 'lucide-react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 
 function getVibeDetails(vibeStr: string) {
   const v = vibeStr.toLowerCase()
   if (v.includes('breakfast') || v.includes('food') || v.includes('eat') || v.includes('brunch') || v.includes('dinner') || v.includes('lunch') || v.includes('tasheh')) {
-    return { emoji: '🥞', color: 'from-amber-400 to-orange-500', bgLight: 'bg-amber-50 text-amber-600 border-amber-100' }
+    return { icon: Utensils, color: 'from-amber-400 to-orange-500', bgLight: 'bg-amber-50 text-amber-600 border-amber-100' }
   }
   if (v.includes('coffee') || v.includes('cafe') || v.includes('chat') || v.includes('rumi') || v.includes('talk')) {
-    return { emoji: '☕', color: 'from-amber-700 to-amber-900', bgLight: 'bg-amber-100 text-amber-800 border-amber-250' }
+    return { icon: Coffee, color: 'from-amber-700 to-amber-900', bgLight: 'bg-amber-100 text-amber-800 border-amber-250' }
   }
   if (v.includes('movie') || v.includes('cinema') || v.includes('show') || v.includes('watch')) {
-    return { emoji: '🍿', color: 'from-rose-500 to-red-600', bgLight: 'bg-rose-50 text-rose-600 border-rose-100' }
+    return { icon: Film, color: 'from-rose-500 to-red-600', bgLight: 'bg-rose-50 text-rose-600 border-rose-100' }
   }
   if (v.includes('study') || v.includes('read') || v.includes('work') || v.includes('book')) {
-    return { emoji: '📚', color: 'from-violet-500 to-purple-600', bgLight: 'bg-violet-50 text-violet-600 border-violet-100' }
+    return { icon: BookOpen, color: 'from-violet-500 to-purple-600', bgLight: 'bg-violet-50 text-violet-600 border-violet-100' }
   }
   if (v.includes('walk') || v.includes('run') || v.includes('sport') || v.includes('hike') || v.includes('gym')) {
-    return { emoji: '👟', color: 'from-emerald-400 to-teal-500', bgLight: 'bg-emerald-50 text-emerald-600 border-emerald-100' }
+    return { icon: Footprints, color: 'from-emerald-400 to-teal-500', bgLight: 'bg-emerald-50 text-emerald-600 border-emerald-100' }
   }
-  return { emoji: '✨', color: 'from-brand-cyan to-blue-500', bgLight: 'bg-cyan-50 text-cyan-600 border-cyan-100' }
+  return { icon: Sparkles, color: 'from-brand-cyan to-blue-500', bgLight: 'bg-cyan-50 text-cyan-600 border-cyan-100' }
 }
 
 export default function Memories() {
@@ -428,6 +428,7 @@ export default function Memories() {
                     <div className="flex justify-between items-start mt-2">
                       <div className="space-y-2 flex-1 min-w-0 pr-3">
                         <span className={`inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full border bg-white/60 backdrop-blur-sm shadow-sm border-slate-200/40 text-slate-705`}>
+                          <vibeInfo.icon size={10} className="shrink-0" />
                           <span>{nextOuting.vibe || 'Outing'}</span>
                         </span>
                         <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none pt-1.5 truncate">
@@ -578,12 +579,16 @@ export default function Memories() {
                             <span>Time: {o.time}</span>
                           </div>
                         )}
-                        {o.vibe && (
-                          <div className="flex items-center gap-2">
-                            <Smile size={12} className="text-brand-amber shrink-0" />
-                            <span>Vibe: {o.vibe}</span>
-                          </div>
-                        )}
+                        {o.vibe && (() => {
+                          const details = getVibeDetails(o.vibe)
+                          const VibeIcon = details.icon
+                          return (
+                            <div className="flex items-center gap-2">
+                              <VibeIcon size={12} className="text-brand-amber shrink-0" />
+                              <span>Vibe: {o.vibe}</span>
+                            </div>
+                          )
+                        })()}
                         
                         {/* Links Row */}
                         <div className="flex gap-2.5 pt-2">

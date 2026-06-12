@@ -7,7 +7,8 @@ import html2canvas from 'html2canvas'
 import { 
   ChevronLeft, Plus, Clock, Trash2, Calendar, LayoutGrid, 
   BookOpen, User, Trophy, BarChart2, Download, 
-  Eye, EyeOff 
+  Eye, EyeOff, Lightbulb, Compass, Laptop, Dumbbell, 
+  Utensils, Footprints, Coffee, PenTool, Film, Car, Moon 
 } from 'lucide-react'
 
 const DOMAINS = [
@@ -18,21 +19,21 @@ const DOMAINS = [
   { id: 'matches', label: 'Sports & Matches', color: 'from-rose-500 to-red-600', textClass: 'text-rose-500', borderClass: 'border-rose-500/30', bgLight: 'bg-rose-500/10' }
 ] as const
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+const DAYS = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
 const PRESETS = [
-  { title: 'Mosque Prayer 🕌', domain: 'spiritual', emoji: '🕌' },
-  { title: 'Focus Coding 💻', domain: 'work', emoji: '💻' },
-  { title: 'Gym Workout 🏋️', domain: 'health', emoji: '🏋️' },
-  { title: 'Cooking Meal 🍳', domain: 'downtime', emoji: '🍳' },
-  { title: 'Daily Walk 🚶', domain: 'health', emoji: '🚶' },
-  { title: 'Coffee Break ☕', domain: 'downtime', emoji: '☕' },
-  { title: 'Book Reading 📖', domain: 'downtime', emoji: '📖' },
-  { title: 'Focus Writing ✍️', domain: 'work', emoji: '✍️' },
-  { title: 'Watch Movie 🍿', domain: 'downtime', emoji: '🍿' },
-  { title: 'Driving / Transit 🚗', domain: 'downtime', emoji: '🚗' },
-  { title: 'Nap / Rest 💤', domain: 'downtime', emoji: '💤' },
-  { title: 'Football Match ⚽', domain: 'matches', emoji: '⚽' }
+  { title: 'Mosque Prayer', domain: 'spiritual', icon: Compass, textClass: 'text-emerald-600', borderClass: 'border-emerald-500/30' },
+  { title: 'Focus Coding', domain: 'work', icon: Laptop, textClass: 'text-brand-cyan', borderClass: 'border-brand-cyan/30' },
+  { title: 'Gym Workout', domain: 'health', icon: Dumbbell, textClass: 'text-orange-500', borderClass: 'border-orange-500/30' },
+  { title: 'Cooking Meal', domain: 'downtime', icon: Utensils, textClass: 'text-rose-500', borderClass: 'border-rose-500/30' },
+  { title: 'Daily Walk', domain: 'health', icon: Footprints, textClass: 'text-teal-600', borderClass: 'border-teal-500/30' },
+  { title: 'Coffee Break', domain: 'downtime', icon: Coffee, textClass: 'text-amber-800', borderClass: 'border-amber-800/30' },
+  { title: 'Book Reading', domain: 'downtime', icon: BookOpen, textClass: 'text-indigo-600', borderClass: 'border-indigo-500/30' },
+  { title: 'Focus Writing', domain: 'work', icon: PenTool, textClass: 'text-blue-600', borderClass: 'border-blue-500/30' },
+  { title: 'Watch Movie', domain: 'downtime', icon: Film, textClass: 'text-red-600', borderClass: 'border-red-500/30' },
+  { title: 'Driving / Transit', domain: 'downtime', icon: Car, textClass: 'text-slate-655', borderClass: 'border-slate-500/30' },
+  { title: 'Nap / Rest', domain: 'downtime', icon: Moon, textClass: 'text-violet-600', borderClass: 'border-violet-500/30' },
+  { title: 'Football Match', domain: 'matches', icon: Trophy, textClass: 'text-pink-600', borderClass: 'border-pink-500/30' }
 ] as const
 
 function timeToMinutes(timeStr: string): number {
@@ -44,7 +45,7 @@ export default function Space() {
   const navigate = useNavigate()
   const { timeBlocks, addTimeBlock, deleteTimeBlock, showToast } = useAppStore()
 
-  const [activeDay, setActiveDay] = useState<string>('Monday')
+  const [activeDay, setActiveDay] = useState<string>('Saturday')
   const [activeTab, setActiveTab] = useState<'calendar' | 'analytics'>('calendar')
   const [isAddingBlock, setIsAddingBlock] = useState(false)
   
@@ -333,22 +334,23 @@ export default function Space() {
             {!isExporting && (
               <div className="space-y-1.5 select-none px-1">
                 <div className="flex justify-between items-center">
-                  <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
-                    💡 Quick Preset Ideas
+                  <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
+                    <Lightbulb size={11} className="text-amber-500" />
+                    <span>Quick Preset Ideas</span>
                   </span>
                   <span className="text-[8px] font-bold text-slate-400 uppercase">Tap to budget time</span>
                 </div>
                 <div className="flex gap-2 overflow-x-auto pb-1.5 -mx-2 px-2 scrollbar-none">
                   {PRESETS.map((p) => {
-                    const dom = getDomainDetails(p.domain)
+                    const IconComponent = p.icon
                     return (
                       <button
                         key={p.title}
                         type="button"
                         onClick={() => handleTapPreset(p)}
-                        className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[10.5px] font-black border flex items-center gap-1 transition-all active-pop bg-white hover:bg-slate-50 ${dom.borderClass} ${dom.textClass}`}
+                        className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[10.5px] font-black border flex items-center gap-1 transition-all active-pop bg-white hover:bg-slate-50 ${p.borderClass} ${p.textClass}`}
                       >
-                        <span>{p.emoji}</span>
+                        <IconComponent size={11} className="shrink-0" />
                         <span>{p.title.split(' ')[0]}</span>
                       </button>
                     )
@@ -365,12 +367,13 @@ export default function Space() {
               
               {/* Heatmap Grid */}
               <div className="flex gap-1.5">
-                {/* Day Labels */}
+                {/* Hour Labels */}
                 <div className="flex flex-col justify-between text-[7px] font-black text-slate-350 w-5 uppercase select-none pb-0.5 pt-0.5">
-                  <span>Mon</span>
-                  <span>Wed</span>
-                  <span>Fri</span>
-                  <span>Sun</span>
+                  <span>00:00</span>
+                  <span>06:00</span>
+                  <span>12:00</span>
+                  <span>18:00</span>
+                  <span>24:00</span>
                 </div>
                 
                 {/* Day Columns */}
@@ -669,6 +672,7 @@ export default function Space() {
                 <div className="grid grid-cols-3 gap-1.5 max-h-[140px] overflow-y-auto pr-1">
                   {PRESETS.map((p) => {
                     const isSelectedPreset = title === p.title && domain === p.domain
+                    const IconComponent = p.icon
                     return (
                       <button
                         key={p.title}
@@ -683,7 +687,7 @@ export default function Space() {
                             : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
                         }`}
                       >
-                        <span>{p.emoji}</span>
+                        <IconComponent size={10} className="shrink-0" />
                         <span>{p.title.split(' ')[0]}</span>
                       </button>
                     )

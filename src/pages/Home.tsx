@@ -68,7 +68,7 @@ export default function Home() {
     if (!nextOuting) return 'Plan one'
     const diff = new Date(nextOuting.date).getTime() - new Date().setHours(0,0,0,0)
     const days = Math.ceil(diff / 86400000)
-    if (days === 0) return 'Today! 🎉'
+    if (days === 0) return 'Today!'
     if (days === 1) return 'Tomorrow!'
     return `In ${days} days`
   }
